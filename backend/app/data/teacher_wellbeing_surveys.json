@@ -1,0 +1,51 @@
+{
+  "catalog_version": "1.0.0",
+  "surveys": [
+    {
+      "code": "daily_checkin", "version": "1.0.0", "title": "Ежедневное самочувствие", "cadence": "daily", "locale": "ru-RU", "estimated_minutes": 2,
+      "questions": [
+        {"id":"fatigue_score","title":"Усталость за сегодня","type":"integer_scale","required":true,"min":1,"max":5,"step":1,"labels":{"1":"нет","5":"очень сильная"}},
+        {"id":"stress_score","title":"Стресс за сегодня","type":"integer_scale","required":true,"min":1,"max":5,"step":1,"labels":{"1":"нет","5":"очень сильный"}},
+        {"id":"workload_perception","title":"Ощущаемая нагрузка","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"emotional_exhaustion_today","title":"Эмоциональное истощение","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"recovery_capacity","title":"Способность восстановиться","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"control_over_tasks","title":"Контроль над задачами","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"main_overload_source","title":"Главный источник перегрузки","type":"single_choice","required":true,"options":[{"value":"teaching","label":"Уроки"},{"value":"grading","label":"Проверка работ"},{"value":"documentation","label":"Документы"},{"value":"communication","label":"Общение"},{"value":"other","label":"Другое"}]},
+        {"id":"today_workload_feeling","title":"Как вы ощущали сегодняшнюю рабочую нагрузку?","type":"long_text","required":true,"min_length":1,"max_length":3000,"timeframe":"today"}
+      ]
+    },
+    {
+      "code": "weekly_reflection", "version": "1.0.0", "title": "Еженедельная рефлексия", "cadence": "weekly", "locale": "ru-RU", "estimated_minutes": 4,
+      "questions": [
+        {"id":"fatigue_frequency","title":"Частота усталости","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"emotional_drain_frequency","title":"Частота эмоционального истощения","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"work_thoughts_after_hours","title":"Мысли о работе после рабочего времени","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"sleep_disruption","title":"Нарушение сна","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"weekend_recovery","title":"Восстановление за выходные","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"work_satisfaction","title":"Удовлетворённость работой","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"colleague_support","title":"Поддержка коллег","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"unplanned_tasks","title":"Незапланированные задачи","type":"integer_scale","required":false,"min":1,"max":5,"step":1},
+        {"id":"hardest_week_factor","title":"Самый трудный фактор недели","type":"single_choice","required":true,"options":[{"value":"teaching","label":"Уроки"},{"value":"grading","label":"Проверка"},{"value":"documentation","label":"Документы"},{"value":"communication","label":"Общение"},{"value":"other","label":"Другое"}]},
+        {"id":"weekly_comment","title":"Комментарий о неделе","type":"long_text","required":false,"min_length":1,"max_length":3000,"timeframe":"week"},
+        {"id":"today_workload_feeling","title":"Как вы ощущали сегодняшнюю рабочую нагрузку?","type":"long_text","required":true,"min_length":1,"max_length":3000,"timeframe":"today"}
+      ]
+    },
+    {
+      "code": "monthly_wellbeing", "version": "1.0.0", "title": "Ежемесячное самочувствие", "cadence": "monthly", "locale": "ru-RU", "estimated_minutes": 5,
+      "questions": [
+        {"id":"persistent_exhaustion","title":"Устойчивое истощение","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"morning_dread","title":"Тяжесть перед рабочим днём","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"emotional_distance","title":"Эмоциональная отстранённость","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"irritability","title":"Раздражительность","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"meaning_of_work","title":"Ощущение смысла работы","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"professional_effectiveness","title":"Профессиональная эффективность","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"work_life_balance","title":"Баланс работы и жизни","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"autonomy","title":"Автономия","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"support_resources","title":"Доступность поддержки","type":"integer_scale","required":true,"min":1,"max":5,"step":1},
+        {"id":"change_vs_previous_month","title":"Изменение относительно прошлого месяца","type":"single_choice","required":false,"options":[{"value":"better","label":"Лучше"},{"value":"same","label":"Без изменений"},{"value":"worse","label":"Хуже"}]},
+        {"id":"monthly_comment","title":"Комментарий о месяце","type":"long_text","required":false,"min_length":1,"max_length":3000,"timeframe":"month"},
+        {"id":"today_workload_feeling","title":"Как вы ощущали сегодняшнюю рабочую нагрузку?","type":"long_text","required":true,"min_length":1,"max_length":3000,"timeframe":"today"}
+      ]
+    }
+  ]
+}

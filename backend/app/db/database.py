@@ -7,9 +7,10 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 os.makedirs("db_store", exist_ok=True)
 
 # === Настройка подключения к БД ===
-DATABASE_URL = "sqlite:///./db_store/mood_sync.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./db_store/mood_sync.db")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -20,6 +20,7 @@ venv/
 /backend/db_store/*.sqlite3
 /backend/db_store/*.db
 !/backend/db_store/.gitkeep
+/backend/db_store/workload_uploads/
 
 # Environment variables
 .env
