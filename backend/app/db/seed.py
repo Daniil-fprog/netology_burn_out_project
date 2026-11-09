@@ -6,11 +6,27 @@ from app.core.security import hash_password
 from app.models.note import NoteModel
 from app.models.recommendation import RecommendationModel
 from app.models.user import UserModel
+from app.models.role import RoleModel, UserRoleModel
+from app.schemas.common import RoleCode
 from app.services.sentiment_service import calculate_confidence
 
 
 TEST_USER_ID = 1
 TEST_USER_NAME = "Даниил"
+
+
+def seed_roles(db: Session) -> None:
+    names = {
+        RoleCode.TEACHER: "Преподаватель",
+        RoleCode.DIRECTOR: "Директор",
+        RoleCode.HEAD: "Глава",
+        RoleCode.GROUP_HEAD: "Глава группы",
+        RoleCode.SYSTEM_ADMIN: "Системный администратор",
+    }
+    for code, name in names.items():
+        if db.query(RoleModel).filter_by(code=code.value).first() is None:
+            db.add(RoleModel(code=code.value, name=name))
+    db.commit()
 
 
 def seed_admin_user(db: Session) -> UserModel:
@@ -20,6 +36,10 @@ def seed_admin_user(db: Session) -> UserModel:
     user = db.query(UserModel).filter(UserModel.phone == "+79807057002").first()
 
     if user:
+        role = db.query(RoleModel).filter_by(code=RoleCode.SYSTEM_ADMIN.value).one()
+        if db.query(UserRoleModel).filter_by(user_id=user.id, role_id=role.id).first() is None:
+            db.add(UserRoleModel(user_id=user.id, role_id=role.id))
+            db.commit()
         print("Seed: пользователь Даниил уже существует")
         return user
 
@@ -31,6 +51,9 @@ def seed_admin_user(db: Session) -> UserModel:
     )
 
     db.add(user)
+    db.flush()
+    role = db.query(RoleModel).filter_by(code=RoleCode.SYSTEM_ADMIN.value).one()
+    db.add(UserRoleModel(user_id=user.id, role_id=role.id))
     db.commit()
     db.refresh(user)
 
