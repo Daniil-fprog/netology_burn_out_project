@@ -31,4 +31,3 @@ from app.models.workload import (
     TeacherWorkloadNormModel,
     WorkloadPlanVersionModel,
 )
-from app.models.workload_legacy import DailyWorkloadActualModel, DailyWorkloadPlanModel

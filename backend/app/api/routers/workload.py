@@ -1,18 +1,16 @@
 import io
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.core.config import MAX_UPLOAD_BYTES, PRIVATE_UPLOAD_DIR
-from app.core.enum import WorkUnit
 from app.core.security import get_current_user
-from app.core.work_duration import to_clock_hours, to_teaching_hours
+from app.core.work_duration import to_teaching_hours
 from app.core.access import (
     FACT_ROLES,
     PLAN_MANAGER_ROLES,
@@ -32,82 +30,25 @@ from app.models.import_batch import ImportBatchModel
 from app.models.organization import SchoolModel
 from app.models.teacher import TeacherModel
 from app.models.user import UserModel
-from app.models.workload import TeacherWorkloadNormModel
-from app.models.workload_legacy import DailyWorkloadActualModel, DailyWorkloadPlanModel
+from app.models.work_type import WorkTypeModel
+from app.models.workload import (
+    ActualWorkEntryModel,
+    DailyWorkLogModel,
+    PlannedWorkItemModel,
+    TeacherWorkloadNormModel,
+    WorkloadPlanVersionModel,
+)
+from app.schemas.access import AccessCreate
+from app.schemas.organization import SchoolCreate
+from app.schemas.teacher import TeacherCreate
+from app.schemas.workload import ActualPatch
 from app.services.workload_service import (
-    ACADEMIC_HOUR_FIELDS, ACTUAL_HEADERS, ASTRO, NORM_HEADERS, PLAN_HEADERS,
-    daily_dict, import_workbook, parse_workbook, total, validation_report,
+    ACADEMIC_HOUR_FIELDS, ACTUAL_HEADERS, NORM_HEADERS, PLAN_HEADERS,
+    daily_dict, import_workbook, parse_workbook, validation_report,
 )
 
 
 router = APIRouter(prefix="/api/v1", tags=["Teacher workload"])
-
-
-class SchoolCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
-    external_code: str | None = Field(default=None, max_length=80)
-
-
-class ActualPatch(BaseModel):
-    day_type: str | None = None
-    actual_lessons_hours: Decimal | None = Field(default=None, ge=0)
-    actual_substitutions_hours: Decimal | None = Field(default=None, ge=0)
-    actual_lessons_teaching_hours: Decimal | None = Field(default=None, ge=0, exclude=True)
-    actual_substitutions_teaching_hours: Decimal | None = Field(default=None, ge=0, exclude=True)
-    actual_teaching_block_hours: Decimal | None = Field(default=None, ge=0)
-    actual_preparation_hours: Decimal | None = Field(default=None, ge=0)
-    actual_grading_hours: Decimal | None = Field(default=None, ge=0)
-    actual_documentation_hours: Decimal | None = Field(default=None, ge=0)
-    actual_parent_communication_hours: Decimal | None = Field(default=None, ge=0)
-    actual_class_management_hours: Decimal | None = Field(default=None, ge=0)
-    actual_meetings_methodology_hours: Decimal | None = Field(default=None, ge=0)
-    actual_other_hours: Decimal | None = Field(default=None, ge=0)
-    at_school_hours: Decimal | None = Field(default=None, ge=0)
-    at_home_hours: Decimal | None = Field(default=None, ge=0)
-    fatigue_score: int | None = Field(default=None, ge=1, le=5)
-    stress_score: int | None = Field(default=None, ge=1, le=5)
-    comment: str | None = Field(default=None, max_length=3000)
-
-    @model_validator(mode="after")
-    def normalize_teaching_hours(self):
-        pairs = (
-            ("actual_lessons_hours", "actual_lessons_teaching_hours"),
-            ("actual_substitutions_hours", "actual_substitutions_teaching_hours"),
-        )
-        for clock_field, teaching_field in pairs:
-            if clock_field in self.model_fields_set and teaching_field in self.model_fields_set:
-                raise ValueError(f"specify either {clock_field} or {teaching_field}")
-            if teaching_field in self.model_fields_set:
-                value = getattr(self, teaching_field)
-                setattr(
-                    self,
-                    clock_field,
-                    None if value is None else to_clock_hours(value, WorkUnit.TEACHING_HOUR),
-                )
-        return self
-
-    def persistence_changes(self) -> dict:
-        changes = self.model_dump(
-            exclude_unset=True,
-            exclude={"actual_lessons_teaching_hours", "actual_substitutions_teaching_hours"},
-        )
-        if "actual_lessons_teaching_hours" in self.model_fields_set:
-            changes["actual_lessons_hours"] = self.actual_lessons_hours
-        if "actual_substitutions_teaching_hours" in self.model_fields_set:
-            changes["actual_substitutions_hours"] = self.actual_substitutions_hours
-        return changes
-
-
-class TeacherCreate(BaseModel):
-    user_id: int | None = None
-    external_id: str = Field(min_length=1, max_length=80)
-    subject: str = Field(min_length=1, max_length=150)
-    full_name: str | None = Field(default=None, max_length=255)
-
-
-class AccessCreate(BaseModel):
-    user_id: int
-    role: str = Field(pattern="^(teacher|director|head|group_head|system_admin)$")
 
 
 def page(items: list, page_no: int, page_size: int) -> dict:
@@ -236,18 +177,35 @@ def daily_rows(db: Session, school_id: str, teacher_id: str | None, date_from: d
     tq = db.query(TeacherModel).filter_by(school_id=school_id)
     if teacher_id: tq = tq.filter_by(id=teacher_id)
     teachers_by_id = {x.id: x for x in tq.all()}
-    pq = db.query(DailyWorkloadPlanModel).filter(DailyWorkloadPlanModel.teacher_id.in_(teachers_by_id or [""]))
-    aq = db.query(DailyWorkloadActualModel).filter(DailyWorkloadActualModel.teacher_id.in_(teachers_by_id or [""]))
-    for q in (pq, aq):
-        pass
-    if date_from: pq = pq.filter(DailyWorkloadPlanModel.work_date >= date_from); aq = aq.filter(DailyWorkloadActualModel.work_date >= date_from)
-    if date_to: pq = pq.filter(DailyWorkloadPlanModel.work_date <= date_to); aq = aq.filter(DailyWorkloadActualModel.work_date <= date_to)
-    keyed = defaultdict(dict)
-    for p in pq.all(): keyed[(p.teacher_id, p.work_date)]["plan"] = p
-    for a in aq.all(): keyed[(a.teacher_id, a.work_date)]["actual"] = a
+    pq = (
+        db.query(PlannedWorkItemModel)
+        .join(WorkloadPlanVersionModel)
+        .filter(
+            WorkloadPlanVersionModel.school_id == school_id,
+            WorkloadPlanVersionModel.status == "published",
+            PlannedWorkItemModel.teacher_id.in_(teachers_by_id or [""]),
+        )
+    )
+    aq = db.query(DailyWorkLogModel).filter(DailyWorkLogModel.teacher_id.in_(teachers_by_id or [""]))
+    if date_from:
+        pq = pq.filter(PlannedWorkItemModel.work_date >= date_from)
+        aq = aq.filter(DailyWorkLogModel.work_date >= date_from)
+    if date_to:
+        pq = pq.filter(PlannedWorkItemModel.work_date <= date_to)
+        aq = aq.filter(DailyWorkLogModel.work_date <= date_to)
+    keyed = defaultdict(lambda: {"plan_items": [], "plan_version": -1, "actual": None})
+    for item in pq.order_by(WorkloadPlanVersionModel.version).all():
+        key = (item.teacher_id, item.work_date)
+        version = item.plan_version.version
+        if version > keyed[key]["plan_version"]:
+            keyed[key]["plan_items"] = []
+            keyed[key]["plan_version"] = version
+        keyed[key]["plan_items"].append(item)
+    for log in aq.all():
+        keyed[(log.teacher_id, log.work_date)]["actual"] = log
     rows = []
     for (tid, _), values in keyed.items():
-        row = daily_dict(teachers_by_id[tid], values.get("plan"), values.get("actual"))
+        row = daily_dict(teachers_by_id[tid], values["plan_items"], values["actual"])
         if row["actual"] and not comments: row["actual"].pop("comment", None)
         rows.append(row)
     return rows
@@ -276,11 +234,9 @@ def weekly(school_id: str, teacher_id: str | None = None, week_from: date | None
     for (tid, week), group in grouped.items():
         plans = [r["plan"]["total_hours"] for r in group if r["plan"] and r["plan"]["total_hours"] is not None]
         actuals = [r["actual"]["total_hours"] for r in group if r["actual"] and r["actual"]["total_hours"] is not None]
-        fatigue = [r["actual"]["fatigue_score"] for r in group if r["actual"] and r["actual"].get("fatigue_score") is not None]
-        stress = [r["actual"]["stress_score"] for r in group if r["actual"] and r["actual"].get("stress_score") is not None]
         p, a = (sum(plans) if plans else None), (sum(actuals) if actuals else None)
         weekend = sum(r["actual"]["total_hours"] or 0 for r in group if r["actual"] and date.fromisoformat(r["work_date"]).weekday() >= 5)
-        result.append({"teacher_id": tid, "week_start": week, "planned_hours": p, "actual_hours": a, "deviation_hours": a - p if a is not None and p is not None else None, "actual_to_plan_ratio": a / p if a is not None and p else None, "weekend_hours": weekend, "fatigue_mean": sum(fatigue) / len(fatigue) if fatigue else None, "stress_mean": sum(stress) / len(stress) if stress else None, "observed_days": len(actuals), "expected_days": None, "completion_rate": None, "completion_status": "not_assessed", "has_missing_plan": len(plans) < len(group), "has_missing_actual": len(actuals) < len(group)})
+        result.append({"teacher_id": tid, "week_start": week, "planned_hours": p, "actual_hours": a, "deviation_hours": a - p if a is not None and p is not None else None, "actual_to_plan_ratio": a / p if a is not None and p else None, "weekend_hours": weekend, "observed_days": len(actuals), "expected_days": None, "completion_rate": None, "completion_status": "not_assessed", "has_missing_plan": len(plans) < len(group), "has_missing_actual": len(actuals) < len(group)})
     result.sort(key=lambda x: x["week_start"], reverse=True)
     return page(result, page_no, page_size)
 
@@ -289,20 +245,50 @@ def weekly(school_id: str, teacher_id: str | None = None, week_from: date | None
 def patch_actual(school_id: str, record_id: str, data: ActualPatch, if_match: str | None = Header(default=None, alias="If-Match"), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, {"teacher"})
     own_teacher = require_own_teacher(db, user.id, school_id)
-    record = db.query(DailyWorkloadActualModel).join(TeacherModel).filter(DailyWorkloadActualModel.id == record_id, TeacherModel.school_id == school_id).first()
-    if not record: raise HTTPException(status_code=404, detail="Запись не найдена")
-    if record.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Запись не найдена")
-    if if_match and if_match.strip('"') != str(record.updated_at.timestamp()): raise HTTPException(status_code=409, detail="Запись изменилась")
-    changes = data.persistence_changes()
-    old = {k: str(getattr(record, k)) for k in changes}
-    for k, v in changes.items(): setattr(record, k, v)
-    atotal, complete = total(record, "actual")
-    if complete and record.at_school_hours is not None and record.at_home_hours is not None and abs(Decimal(record.at_school_hours) + Decimal(record.at_home_hours) - atotal) > Decimal("0.05"):
-        raise HTTPException(status_code=422, detail="Сумма работы в школе и дома не совпадает с фактом")
-    db.add(AuditEventModel(actor_id=user.id, action="update", entity_type="daily_workload_actuals", entity_id=record.id, school_id=school_id, changes={"old": old, "fields": list(changes)})); db.commit()
-    teacher = get_teacher_in_school(db, school_id, record.teacher_id)
-    plan_record = db.query(DailyWorkloadPlanModel).filter_by(teacher_id=record.teacher_id, work_date=record.work_date).first()
-    return daily_dict(teacher, plan_record, record)
+    log = db.query(DailyWorkLogModel).join(TeacherModel).filter(
+        DailyWorkLogModel.id == record_id,
+        TeacherModel.school_id == school_id,
+    ).first()
+    if not log or log.teacher_id != own_teacher.id:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+    if if_match and if_match.strip('"') != str(log.updated_at.timestamp()):
+        raise HTTPException(status_code=409, detail="Запись изменилась")
+    changes = data.model_dump(exclude_unset=True, exclude={"entries"})
+    old = {key: str(getattr(log, key)) for key in changes}
+    for key, value in changes.items():
+        setattr(log, key, value)
+    if data.entries is not None:
+        work_type_ids = {entry.work_type_id for entry in data.entries}
+        valid_ids = {
+            item.id
+            for item in db.query(WorkTypeModel).filter(
+                WorkTypeModel.id.in_(work_type_ids or [""]),
+                WorkTypeModel.is_active.is_(True),
+            )
+        }
+        if work_type_ids != valid_ids:
+            raise HTTPException(status_code=422, detail="Неизвестный или архивный тип работы")
+        db.query(ActualWorkEntryModel).filter_by(daily_log_id=log.id).delete(synchronize_session=False)
+        for entry in data.entries:
+            values = entry.model_dump()
+            db.add(
+                ActualWorkEntryModel(
+                    daily_log_id=log.id,
+                    created_by=user.id,
+                    updated_by=user.id,
+                    **values,
+                )
+            )
+    if log.status == "completed":
+        log.completed_at = datetime.now(timezone.utc)
+        log.completed_by = user.id
+    else:
+        log.completed_at = None
+        log.completed_by = None
+    db.add(AuditEventModel(actor_id=user.id, action="update", entity_type="daily_work_logs", entity_id=log.id, school_id=school_id, changes={"old": old, "fields": list(data.model_fields_set)}))
+    db.commit()
+    rows = daily_rows(db, school_id, log.teacher_id, log.work_date, log.work_date, True)
+    return rows[0]
 
 
 def make_workbook(db: Session, school_id: str, teacher_id: str | None, date_from: date | None, date_to: date | None, include_data: bool = True, include_actual: bool = True):
@@ -316,21 +302,26 @@ def make_workbook(db: Session, school_id: str, teacher_id: str | None, date_from
     if include_data:
         teachers_q = db.query(TeacherModel).filter_by(school_id=school_id)
         if teacher_id: teachers_q = teachers_q.filter_by(id=teacher_id)
-        teachers = teachers_q.all(); ids = [t.id for t in teachers]; by_id = {t.id: t for t in teachers}
+        teachers = teachers_q.all()
         for teacher in teachers:
             norm = db.query(TeacherWorkloadNormModel).filter_by(teacher_id=teacher.id).order_by(TeacherWorkloadNormModel.effective_from.desc()).first()
             if norm:
                 values = {"external_id": teacher.external_id, "subject": teacher.subject, "contract_teaching_hours_per_week": norm.contract_teaching_hours_per_week, "standard_teaching_hours_per_rate": norm.standard_teaching_hours_per_rate, "comment": norm.comment, "plan_source": norm.plan_source}
                 wb["Учителя_нормы"].append([values.get(field) for field in NORM_HEADERS.values()])
-        workload_sources = [(DailyWorkloadPlanModel, "План_дня", PLAN_HEADERS)]
+        rows = daily_rows(db, school_id, teacher_id, date_from, date_to, True)
+        workload_sources = [("План_дня", PLAN_HEADERS, "plan")]
         if include_actual:
-            workload_sources.append((DailyWorkloadActualModel, "Ежедневный_учет", ACTUAL_HEADERS))
-        for model, name, mapping in workload_sources:
-            q = db.query(model).filter(model.teacher_id.in_(ids or [""]))
-            if date_from: q = q.filter(model.work_date >= date_from)
-            if date_to: q = q.filter(model.work_date <= date_to)
-            for obj in q.order_by(model.work_date).all():
-                values = {"external_id": by_id[obj.teacher_id].external_id, **obj.__dict__}
+            workload_sources.append(("Ежедневный_учет", ACTUAL_HEADERS, "actual"))
+        for name, mapping, section in workload_sources:
+            for item in rows:
+                if item[section] is None:
+                    continue
+                values = {
+                    "external_id": item["external_teacher_id"],
+                    "work_date": item["work_date"],
+                    "day_type": item["day_type"],
+                    **item[section],
+                }
                 row = []
                 for field in mapping.values():
                     value = values.get(field)

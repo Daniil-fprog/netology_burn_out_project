@@ -12,15 +12,27 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import PSEUDONYM_SECRET
+from app.core.enum import RoleCode
 from app.core.security import get_current_user
-from app.core.teacher_access import get_teacher_in_school, require_school_access, require_teacher_scope
-from app.db.database import get_db
-from app.models.teacher_domain import (
-    AuditEventModel, DailyWorkloadActualModel, DailyWorkloadPlanModel, SurveyAnswerModel,
-    SurveyConsentModel, SurveyNLPAnalysisModel, SurveyQuestionModel, SurveyResponseModel,
-    SurveyResponseRevisionModel, SurveyTemplateModel, TeacherModel,
+from app.core.access import (
+    SURVEY_ROLES,
+    get_teacher_in_school,
+    require_own_teacher,
+    require_school_access,
+    require_teacher_access,
+    find_user_teacher_in_school,
+    get_teacher_id_filter,
 )
+from app.db.database import get_db
+from app.models.audit import AuditEventModel
+from app.models.survey import (
+    SurveyAnswerModel,
+    SurveyConsentModel, SurveyNLPAnalysisModel, SurveyQuestionModel, SurveyResponseModel,
+    SurveyResponseRevisionModel, SurveyTemplateModel,
+)
+from app.models.teacher import TeacherModel
 from app.models.user import UserModel
+from app.models.workload import DailyWorkLogModel, PlannedWorkItemModel, WorkloadPlanVersionModel
 from app.services.survey_service import active_consent, response_dict, seed_surveys, validate_answers, validate_period
 from app.services.workload_service import total
 
@@ -79,38 +91,51 @@ def get_response(db: Session, school_id: str, response_id: str) -> SurveyRespons
 
 @router.get("/schools/{school_id}/surveys")
 def list_surveys(school_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    require_school_access(db, user.id, school_id)
+    require_school_access(db, user.id, school_id, SURVEY_ROLES)
     rows = db.query(SurveyTemplateModel).filter_by(status="published", is_current=True).order_by(SurveyTemplateModel.code).all()
     return [{"code": x.code, "version": x.version, "title": x.title, "cadence": x.cadence, "estimated_minutes": x.definition_jsonb.get("estimated_minutes")} for x in rows]
 
 
 @router.get("/schools/{school_id}/surveys/{code}")
 def survey(school_id: str, code: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    require_school_access(db, user.id, school_id)
+    require_school_access(db, user.id, school_id, SURVEY_ROLES)
     return get_template(db, code).definition_jsonb
 
 
 @router.get("/schools/{school_id}/surveys/{code}/versions/{version}")
 def survey_version(school_id: str, code: str, version: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    require_school_access(db, user.id, school_id)
+    require_school_access(db, user.id, school_id, SURVEY_ROLES)
     return get_template(db, code, version).definition_jsonb
 
 
 @router.post("/schools/{school_id}/surveys/templates/import")
-async def import_templates(school_id: str, file: UploadFile = File(...), dry_run: bool = Query(True), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    require_school_access(db, user.id, school_id, {"admin"})
-    try: catalog = json.loads((await file.read(2_000_001)).decode("utf-8"))
-    except Exception as exc: raise HTTPException(status_code=400, detail=f"Неверный JSON: {exc}")
+async def import_templates(
+    school_id: str,
+    file: UploadFile = File(...),
+    dry_run: bool = Query(True),
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user),
+):
+    require_school_access(db, user.id, school_id, {RoleCode.SYSTEM_ADMIN})
+    try:
+        catalog = json.loads((await file.read(2_000_001)).decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Неверный JSON: {exc}") from exc
     if dry_run:
         surveys = catalog.get("surveys", [])
-        return {"valid": bool(surveys), "templates": len(surveys), "questions": sum(len(x.get("questions", [])) for x in surveys)}
+        return {
+            "valid": bool(surveys),
+            "templates": len(surveys),
+            "questions": sum(len(item.get("questions", [])) for item in surveys),
+        }
     return seed_surveys(db, catalog)
 
 
 @router.post("/schools/{school_id}/teachers/{teacher_id}/survey-consents", status_code=201)
 def grant_consent(school_id: str, teacher_id: str, data: ConsentCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id); require_teacher_scope(access, teacher_id); get_teacher_in_school(db, school_id, teacher_id)
-    if access.role not in {"teacher", "privacy_officer", "admin"}: raise HTTPException(status_code=403, detail="Нет прав на учёт согласия")
+    require_school_access(db, user.id, school_id, {"teacher"})
+    own_teacher = require_own_teacher(db, user.id, school_id)
+    if own_teacher.id != teacher_id: raise HTTPException(status_code=404, detail="Педагог не найден")
     item = SurveyConsentModel(school_id=school_id, teacher_id=teacher_id, **data.model_dump())
     db.add(item); db.add(AuditEventModel(actor_id=user.id, action="create", entity_type="survey_consent", entity_id=item.id, school_id=school_id, purpose=data.purpose, changes={"policy_version": data.policy_version, "method": data.method})); db.commit(); db.refresh(item)
     return {"id": item.id, "teacher_id": item.teacher_id, "purpose": item.purpose, "granted_at": item.granted_at}
@@ -118,19 +143,20 @@ def grant_consent(school_id: str, teacher_id: str, data: ConsentCreate, db: Sess
 
 @router.post("/schools/{school_id}/survey-consents/{consent_id}/withdraw")
 def withdraw_consent(school_id: str, consent_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id)
+    require_school_access(db, user.id, school_id, {"teacher"})
+    own_teacher = require_own_teacher(db, user.id, school_id)
     item = db.query(SurveyConsentModel).filter_by(id=consent_id, school_id=school_id).first()
     if not item: raise HTTPException(status_code=404, detail="Согласие не найдено")
-    require_teacher_scope(access, item.teacher_id)
+    if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Согласие не найдено")
     item.withdrawn_at = datetime.now(timezone.utc); db.commit()
     return {"id": item.id, "withdrawn_at": item.withdrawn_at}
 
 
 @router.post("/schools/{school_id}/survey-responses", status_code=201)
 def create_response(school_id: str, data: ResponseCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id)
-    if access.role != "teacher" or not access.teacher_id: raise HTTPException(status_code=403, detail="Ответ создаёт сам педагог")
-    teacher_id = access.teacher_id; get_teacher_in_school(db, school_id, teacher_id)
+    require_school_access(db, user.id, school_id, {"teacher"})
+    teacher = require_own_teacher(db, user.id, school_id)
+    teacher_id = teacher.id
     template = get_template(db, data.survey_code, data.survey_version)
     comment_date = data.comment_reference_date or data.assessment_date
     validate_period(template.cadence, data.assessment_date, data.period_start, data.period_end, comment_date)
@@ -140,7 +166,7 @@ def create_response(school_id: str, data: ResponseCreate, db: Session = Depends(
             incoming = data.answers
             saved = {a.question.code: a.value_jsonb for a in existing.answers}
             if incoming != saved: raise HTTPException(status_code=409, detail="client_request_id уже использован с другими данными")
-            return {**response_dict(existing, access.can_read_comments), "answers_saved": len(existing.answers), "nlp_status": "pending"}
+            return {**response_dict(existing, True), "answers_saved": len(existing.answers), "nlp_status": "pending"}
     conflict = db.query(SurveyResponseModel).filter_by(teacher_id=teacher_id, cadence=template.cadence, period_start=data.period_start, period_end=data.period_end).filter(SurveyResponseModel.status.in_(["draft", "submitted"])).first()
     if conflict: raise HTTPException(status_code=409, detail="Активный ответ на этот период уже существует")
     questions = db.query(SurveyQuestionModel).filter_by(template_id=template.id).order_by(SurveyQuestionModel.position).all()
@@ -153,12 +179,13 @@ def create_response(school_id: str, data: ResponseCreate, db: Session = Depends(
         answer = SurveyAnswerModel(response_id=item.id, question_id=question.id, value_jsonb=value); db.add(answer); db.flush()
         if data.status == "submitted" and question.code == "today_workload_feeling": db.add(SurveyNLPAnalysisModel(response_id=item.id, answer_id=answer.id, status="pending"))
     db.commit(); db.refresh(item)
-    return {**response_dict(item, access.can_read_comments), "answers_saved": len(values), "nlp_status": "pending" if data.status == "submitted" else None}
+    return {**response_dict(item, True), "answers_saved": len(values), "nlp_status": "pending" if data.status == "submitted" else None}
 
 
 @router.patch("/schools/{school_id}/survey-responses/{response_id}")
 def patch_draft(school_id: str, response_id: str, data: DraftPatch, if_match: str | None = Header(default=None, alias="If-Match"), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id); item = get_response(db, school_id, response_id); require_teacher_scope(access, item.teacher_id)
+    require_school_access(db, user.id, school_id, {"teacher"}); own_teacher = require_own_teacher(db, user.id, school_id); item = get_response(db, school_id, response_id)
+    if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Ответ не найден")
     if item.status != "draft": raise HTTPException(status_code=409, detail="Можно менять только черновик")
     if if_match and if_match.strip('"') != str(item.lock_version): raise HTTPException(status_code=409, detail="Версия черновика изменилась")
     questions = db.query(SurveyQuestionModel).filter_by(template_id=item.template_id).all(); values = validate_answers(questions, data.answers, False)
@@ -166,12 +193,13 @@ def patch_draft(school_id: str, response_id: str, data: DraftPatch, if_match: st
     for q, value in values.items():
         if q.id in by_q: by_q[q.id].value_jsonb = value
         else: db.add(SurveyAnswerModel(response_id=item.id, question_id=q.id, value_jsonb=value))
-    item.lock_version += 1; db.commit(); db.refresh(item); return response_dict(item, access.can_read_comments)
+    item.lock_version += 1; db.commit(); db.refresh(item); return response_dict(item, True)
 
 
 @router.post("/schools/{school_id}/survey-responses/{response_id}/submit")
 def submit_draft(school_id: str, response_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id); item = get_response(db, school_id, response_id); require_teacher_scope(access, item.teacher_id)
+    require_school_access(db, user.id, school_id, {"teacher"}); own_teacher = require_own_teacher(db, user.id, school_id); item = get_response(db, school_id, response_id)
+    if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Ответ не найден")
     if item.status != "draft": raise HTTPException(status_code=409, detail="Ответ уже отправлен")
     consent = active_consent(db, school_id, item.teacher_id, item.consent_record_id)
     if not consent: raise HTTPException(status_code=403, detail="Нет действующего согласия survey_storage")
@@ -179,12 +207,13 @@ def submit_draft(school_id: str, response_id: str, db: Session = Depends(get_db)
     item.status = "submitted"; item.submitted_at = datetime.now(timezone.utc)
     for answer in item.answers:
         if answer.question.code == "today_workload_feeling": db.add(SurveyNLPAnalysisModel(response_id=item.id, answer_id=answer.id, status="pending"))
-    db.commit(); db.refresh(item); return response_dict(item, access.can_read_comments)
+    db.commit(); db.refresh(item); return response_dict(item, True)
 
 
 @router.post("/schools/{school_id}/survey-responses/{response_id}/corrections")
 def correct_response(school_id: str, response_id: str, data: Correction, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id, {"admin", "privacy_officer"}); item = get_response(db, school_id, response_id)
+    require_school_access(db, user.id, school_id, {"teacher"}); own_teacher = require_own_teacher(db, user.id, school_id); item = get_response(db, school_id, response_id)
+    if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Ответ не найден")
     if item.status != "submitted": raise HTTPException(status_code=409, detail="Исправлять можно только submitted")
     questions = db.query(SurveyQuestionModel).filter_by(template_id=item.template_id).all(); current = {a.question.code: a.value_jsonb for a in item.answers}; merged = {**current, **data.answers}; values = validate_answers(questions, merged, True)
     revision_no = db.query(SurveyResponseRevisionModel).filter_by(response_id=item.id).count() + 1
@@ -194,48 +223,51 @@ def correct_response(school_id: str, response_id: str, data: Correction, db: Ses
         if q.id in by_q: by_q[q.id].value_jsonb = value
         else: db.add(SurveyAnswerModel(response_id=item.id, question_id=q.id, value_jsonb=value))
     db.query(SurveyNLPAnalysisModel).filter_by(response_id=item.id).update({"stale": True}); item.lock_version += 1; db.commit(); db.refresh(item)
-    return response_dict(item, access.can_read_comments)
+    return response_dict(item, True)
 
 
 @router.post("/schools/{school_id}/survey-responses/{response_id}/withdraw")
 def withdraw_response(school_id: str, response_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id); item = get_response(db, school_id, response_id); require_teacher_scope(access, item.teacher_id)
-    if item.status == "withdrawn": return response_dict(item, access.can_read_comments)
+    require_school_access(db, user.id, school_id, {"teacher"}); own_teacher = require_own_teacher(db, user.id, school_id); item = get_response(db, school_id, response_id)
+    if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Ответ не найден")
+    if item.status == "withdrawn": return response_dict(item, True)
     previous = {a.question.code: a.value_jsonb for a in item.answers}; revision_no = db.query(SurveyResponseRevisionModel).filter_by(response_id=item.id).count() + 1
     db.add(SurveyResponseRevisionModel(response_id=item.id, revision_no=revision_no, actor_id=user.id, previous_answers_jsonb=previous, change_type="withdraw")); item.status = "withdrawn"; db.query(SurveyNLPAnalysisModel).filter_by(response_id=item.id).update({"stale": True, "status": "cancelled"}); db.commit(); db.refresh(item)
-    return response_dict(item, access.can_read_comments)
+    return response_dict(item, True)
 
 
 @router.get("/schools/{school_id}/survey-responses")
 def responses(school_id: str, teacher_id: str | None = None, survey_code: str | None = None, status: str | None = None, date_from: date | None = None, date_to: date | None = None, page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=100), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id); q = db.query(SurveyResponseModel).filter_by(school_id=school_id)
-    if access.role == "teacher": teacher_id = access.teacher_id
+    require_school_access(db, user.id, school_id, SURVEY_ROLES); q = db.query(SurveyResponseModel).filter_by(school_id=school_id)
+    own_teacher_id = get_teacher_id_filter(db, user.id, school_id)
+    teacher_id = own_teacher_id or teacher_id
     if teacher_id: q = q.filter_by(teacher_id=teacher_id)
     if survey_code: q = q.join(SurveyTemplateModel).filter(SurveyTemplateModel.code == survey_code)
     if status: q = q.filter(SurveyResponseModel.status == status)
     if date_from: q = q.filter(SurveyResponseModel.assessment_date >= date_from)
     if date_to: q = q.filter(SurveyResponseModel.assessment_date <= date_to)
     rows = q.order_by(SurveyResponseModel.assessment_date.desc()).all()
-    return pagination([response_dict(x, access.can_read_comments or access.role == "teacher") for x in rows], page, page_size)
+    return pagination([response_dict(x, own_teacher_id == x.teacher_id) for x in rows], page, page_size)
 
 
 @router.get("/schools/{school_id}/survey-responses/{response_id}")
 def response(school_id: str, response_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id); item = get_response(db, school_id, response_id); require_teacher_scope(access, item.teacher_id); return response_dict(item, access.can_read_comments or access.role == "teacher")
+    require_school_access(db, user.id, school_id, SURVEY_ROLES); item = get_response(db, school_id, response_id); require_teacher_access(db, user.id, school_id, item.teacher_id); own_teacher = find_user_teacher_in_school(db, user.id, school_id); return response_dict(item, own_teacher is not None and own_teacher.id == item.teacher_id)
 
 
 @router.get("/schools/{school_id}/teachers/{teacher_id}/survey-history")
 def history(school_id: str, teacher_id: str, page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=100), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id); require_teacher_scope(access, teacher_id); get_teacher_in_school(db, school_id, teacher_id)
+    require_school_access(db, user.id, school_id, SURVEY_ROLES); require_teacher_access(db, user.id, school_id, teacher_id); get_teacher_in_school(db, school_id, teacher_id)
     rows = db.query(SurveyResponseModel).filter_by(school_id=school_id, teacher_id=teacher_id).order_by(SurveyResponseModel.assessment_date.desc()).all()
-    return pagination([response_dict(x, access.can_read_comments or access.role == "teacher") for x in rows], page, page_size)
+    own_teacher = find_user_teacher_in_school(db, user.id, school_id)
+    return pagination([response_dict(x, own_teacher is not None and own_teacher.id == x.teacher_id) for x in rows], page, page_size)
 
 
 @router.get("/schools/{school_id}/survey-analytics/completion")
 def completion(school_id: str, date_from: date, date_to: date, teacher_id: str | None = None, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id)
+    require_school_access(db, user.id, school_id, SURVEY_ROLES)
     if date_from > date_to: raise HTTPException(status_code=422, detail="date_from позже date_to")
-    if access.role == "teacher": teacher_id = access.teacher_id
+    teacher_id = get_teacher_id_filter(db, user.id, school_id) or teacher_id
     teacher_query = db.query(TeacherModel).filter_by(school_id=school_id, is_active=True)
     if teacher_id: teacher_query = teacher_query.filter_by(id=teacher_id)
     teachers = teacher_query.all()
@@ -265,16 +297,15 @@ def safe_cell(value: Any) -> Any:
 
 
 @router.get("/schools/{school_id}/surveys/exports")
-def export_surveys(school_id: str, format: str = Query("xlsx", pattern="^(xlsx|csv|json)$"), report: str = Query("responses", pattern="^(responses|summary)$"), date_from: date | None = None, date_to: date | None = None, include_comments: bool = False, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id, {"admin", "survey_manager", "researcher", "privacy_officer"})
-    if include_comments and not access.can_read_comments: raise HTTPException(status_code=403, detail="Нет отдельного разрешения на комментарии")
+def export_surveys(school_id: str, format: str = Query("xlsx", pattern="^(xlsx|csv|json)$"), report: str = Query("responses", pattern="^(responses|summary)$"), date_from: date | None = None, date_to: date | None = None, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    require_school_access(db, user.id, school_id, {"head", "group_head"})
     q = db.query(SurveyResponseModel).filter_by(school_id=school_id, status="submitted")
     if date_from: q = q.filter(SurveyResponseModel.assessment_date >= date_from)
     if date_to: q = q.filter(SurveyResponseModel.assessment_date <= date_to)
     rows = []
     for item in q.order_by(SurveyResponseModel.assessment_date).all():
-        data = response_dict(item, include_comments); rows.append({"response_id": item.id, "teacher_key": pseudo(item.teacher_id), "survey_code": item.template.code, "survey_version": item.template.version, "assessment_date": str(item.assessment_date), "period_start": str(item.period_start), "period_end": str(item.period_end), **{k: safe_cell(v) for k, v in data["answers"].items()}})
-    db.add(AuditEventModel(actor_id=user.id, action="export", entity_type="surveys", school_id=school_id, purpose=report, changes={"format": format, "rows": len(rows), "include_comments": include_comments})); db.commit()
+        data = response_dict(item, False); rows.append({"response_id": item.id, "teacher_key": pseudo(item.teacher_id), "survey_code": item.template.code, "survey_version": item.template.version, "assessment_date": str(item.assessment_date), "period_start": str(item.period_start), "period_end": str(item.period_end), **{k: safe_cell(v) for k, v in data["answers"].items()}})
+    db.add(AuditEventModel(actor_id=user.id, action="export", entity_type="surveys", school_id=school_id, purpose=report, changes={"format": format, "rows": len(rows)})); db.commit()
     columns = sorted({k for row in rows for k in row}) if rows else ["response_id", "teacher_key", "survey_code", "survey_version", "assessment_date", "period_start", "period_end"]
     if format == "json": return StreamingResponse(io.BytesIO(json.dumps(rows, ensure_ascii=False).encode()), media_type="application/json", headers={"Content-Disposition": 'attachment; filename="survey_responses.json"'})
     if format == "csv":
@@ -290,8 +321,7 @@ def export_surveys(school_id: str, format: str = Query("xlsx", pattern="^(xlsx|c
 
 @router.get("/schools/{school_id}/ml/teacher-wellbeing/dataset")
 def ml_dataset(school_id: str, date_from: date, date_to: date, feature_version: str = Query("v1", pattern="^v1$"), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id, {"researcher"})
-    if not access.can_export_research: raise HTTPException(status_code=403, detail="Нет разрешения на исследовательскую выгрузку")
+    require_school_access(db, user.id, school_id, {"head", "group_head"})
     teachers = db.query(TeacherModel).filter_by(school_id=school_id).all(); result = []
     day = date_from
     while day <= date_to:
@@ -305,10 +335,32 @@ def ml_dataset(school_id: str, date_from: date, date_to: date, feature_version: 
             def mean(code, since):
                 nums = [a[code] for r, a in values if r.assessment_date >= since and code in a and isinstance(a[code], (int, float))]
                 return sum(nums) / len(nums) if nums else None
-            actuals = db.query(DailyWorkloadActualModel).filter(DailyWorkloadActualModel.teacher_id == teacher.id, DailyWorkloadActualModel.work_date.between(start7, day)).all()
-            plans = db.query(DailyWorkloadPlanModel).filter(DailyWorkloadPlanModel.teacher_id == teacher.id, DailyWorkloadPlanModel.work_date.between(start7, day)).all()
-            actual_totals = [total(x, "actual")[0] for x in actuals]; actual_totals = [float(x) for x in actual_totals if x is not None]
-            plan_totals = [total(x, "planned")[0] for x in plans]; plan_totals = [float(x) for x in plan_totals if x is not None]
+            actual_logs = db.query(DailyWorkLogModel).filter(
+                DailyWorkLogModel.teacher_id == teacher.id,
+                DailyWorkLogModel.work_date.between(start7, day),
+            ).all()
+            actual_totals = [float(total(list(log.entries))) for log in actual_logs]
+            plan_items = (
+                db.query(PlannedWorkItemModel)
+                .join(WorkloadPlanVersionModel)
+                .filter(
+                    WorkloadPlanVersionModel.school_id == school_id,
+                    WorkloadPlanVersionModel.status == "published",
+                    PlannedWorkItemModel.teacher_id == teacher.id,
+                    PlannedWorkItemModel.work_date.between(start7, day),
+                )
+                .order_by(WorkloadPlanVersionModel.version)
+                .all()
+            )
+            latest_plan_by_day = {}
+            for plan_item in plan_items:
+                current = latest_plan_by_day.get(plan_item.work_date)
+                version = plan_item.plan_version.version
+                if current is None or version > current[0]:
+                    latest_plan_by_day[plan_item.work_date] = (version, [])
+                if version == latest_plan_by_day[plan_item.work_date][0]:
+                    latest_plan_by_day[plan_item.work_date][1].append(plan_item)
+            plan_totals = [float(total(items)) for _, items in latest_plan_by_day.values()]
             latest_weekly = next((a for r, a in sorted(values, key=lambda x: x[0].assessment_date, reverse=True) if r.cadence == "weekly"), {})
             latest_monthly = next((a for r, a in sorted(values, key=lambda x: x[0].assessment_date, reverse=True) if r.cadence == "monthly"), {})
             result.append({"teacher_key": pseudo(teacher.id), "as_of_date": str(day), "feature_version": feature_version, "daily_fatigue_mean_7d": mean("fatigue_score", start7), "daily_stress_mean_7d": mean("stress_score", start7), "emotional_exhaustion_mean_14d": mean("emotional_exhaustion_today", start14), "recovery_capacity_mean_7d": mean("recovery_capacity", start7), "survey_response_count_7d": sum(1 for r, _ in values if r.assessment_date >= start7), "survey_missing_days_7d": None, "workload_actual_hours_7d": sum(actual_totals) if actual_totals else None, "workload_plan_hours_7d": sum(plan_totals) if plan_totals else None, "workload_delta_hours_7d": sum(actual_totals) - sum(plan_totals) if actual_totals and plan_totals else None, "weekly_sleep_disruption_latest": latest_weekly.get("sleep_disruption"), "monthly_persistent_exhaustion_latest": latest_monthly.get("persistent_exhaustion"), "target_label": None, "target_assessment_date": None})
@@ -320,15 +372,16 @@ def ml_dataset(school_id: str, date_from: date, date_to: date, feature_version: 
 
 @router.get("/schools/{school_id}/survey-responses/{response_id}/nlp")
 def nlp_results(school_id: str, response_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id); item = get_response(db, school_id, response_id); require_teacher_scope(access, item.teacher_id)
+    require_school_access(db, user.id, school_id, SURVEY_ROLES); item = get_response(db, school_id, response_id); require_teacher_access(db, user.id, school_id, item.teacher_id)
     return [{"id": x.id, "status": x.status, "model_name": x.model_name, "model_version": x.model_version, "schema_version": x.schema_version, "result": x.result_jsonb, "stale": x.stale, "analyzed_at": x.analyzed_at} for x in db.query(SurveyNLPAnalysisModel).filter_by(response_id=response_id).order_by(SurveyNLPAnalysisModel.created_at.desc())]
 
 
 @router.post("/schools/{school_id}/survey-responses/{response_id}/nlp/reprocess", status_code=202)
 def reprocess_nlp(school_id: str, response_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id, {"researcher", "privacy_officer", "admin"})
-    if not access.can_read_comments: raise HTTPException(status_code=403, detail="Нет разрешения на обработку текста")
+    require_school_access(db, user.id, school_id, {"teacher"})
+    own_teacher = require_own_teacher(db, user.id, school_id)
     item = get_response(db, school_id, response_id)
+    if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Ответ не найден")
     consent = db.query(SurveyConsentModel).filter_by(school_id=school_id, teacher_id=item.teacher_id, purpose="research_processing", withdrawn_at=None).first()
     if not consent: raise HTTPException(status_code=403, detail="Нет действующего согласия research_processing")
     answer = next((x for x in item.answers if x.question.code == "today_workload_feeling"), None)
@@ -340,12 +393,24 @@ def reprocess_nlp(school_id: str, response_id: str, db: Session = Depends(get_db
 
 @router.get("/schools/{school_id}/teachers/{teacher_id}/workload-and-wellbeing")
 def workload_and_wellbeing(school_id: str, teacher_id: str, date_from: date, date_to: date, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    access = require_school_access(db, user.id, school_id); require_teacher_scope(access, teacher_id); get_teacher_in_school(db, school_id, teacher_id)
-    actuals = db.query(DailyWorkloadActualModel).filter(DailyWorkloadActualModel.teacher_id == teacher_id, DailyWorkloadActualModel.work_date.between(date_from, date_to)).all()
+    require_school_access(db, user.id, school_id, SURVEY_ROLES); require_teacher_access(db, user.id, school_id, teacher_id); get_teacher_in_school(db, school_id, teacher_id)
+    actual_logs = db.query(DailyWorkLogModel).filter(
+        DailyWorkLogModel.teacher_id == teacher_id,
+        DailyWorkLogModel.work_date.between(date_from, date_to),
+    ).all()
     responses = db.query(SurveyResponseModel).filter(SurveyResponseModel.teacher_id == teacher_id, SurveyResponseModel.assessment_date.between(date_from, date_to), SurveyResponseModel.status == "submitted").all()
     by_date = {}
-    for actual in actuals: by_date.setdefault(str(actual.work_date), {"date": actual.work_date, "workload": None, "surveys": []})["workload"] = {"actual_total_hours": float(total(actual, "actual")[0]) if total(actual, "actual")[0] is not None else None, "legacy_fatigue_score": actual.fatigue_score, "legacy_stress_score": actual.stress_score, "source": "legacy_excel"}
-    for item in responses: by_date.setdefault(str(item.assessment_date), {"date": item.assessment_date, "workload": None, "surveys": []})["surveys"].append(response_dict(item, access.can_read_comments or access.role == "teacher"))
+    for log in actual_logs:
+        by_date.setdefault(
+            str(log.work_date),
+            {"date": log.work_date, "workload": None, "surveys": []},
+        )["workload"] = {
+            "actual_total_hours": float(total(list(log.entries))),
+            "status": log.status,
+            "source": "daily_work_logs",
+        }
+    own_teacher = find_user_teacher_in_school(db, user.id, school_id)
+    for item in responses: by_date.setdefault(str(item.assessment_date), {"date": item.assessment_date, "workload": None, "surveys": []})["surveys"].append(response_dict(item, own_teacher is not None and own_teacher.id == item.teacher_id))
     return [by_date[k] for k in sorted(by_date)]
 
 

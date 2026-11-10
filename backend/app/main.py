@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import CORS_ALLOWED_ORIGINS
 from app.db.database import Base, engine, SessionLocal
 from app.api.routers import analytics, auth, notes, recommendations, surveys, users, workload
-from app.db.seed import seed_admin_user, seed_roles, seed_test_data
+from app.db.seed import seed_admin_user, seed_roles, seed_test_data, seed_work_types
 from app.services.survey_service import seed_surveys
 
 
@@ -16,6 +16,7 @@ Base.metadata.create_all(bind=engine)
 db = SessionLocal()
 try:
     seed_roles(db)
+    seed_work_types(db)
     seed_admin_user(db)
     seed_test_data(db)
     seed_surveys(db)
