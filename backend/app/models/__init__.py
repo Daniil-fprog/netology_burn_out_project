@@ -4,34 +4,31 @@ from app.models.recommendation import RecommendationModel
 from app.models.note_recommendation import NoteRecommendationModel
 
 # Import every semantic module so all tables are registered in Base.metadata.
-# The compatibility facade keeps existing service imports working unchanged.
-from app.models.teacher_domain import (
-    ActualWorkEntryModel,
-    AuditEventModel,
-    DailyWorkLogModel,
-    DailyWorkloadActualModel,
-    DailyWorkloadPlanModel,
-    ExportJobModel,
-    ImportBatchModel,
-    PlannedWorkItemModel,
-    RoleModel,
-    SchoolGroupModel,
-    SchoolGroupSchoolModel,
-    SchoolModel,
+from app.models.access import (
+    UserSchoolAccessModel,
+    UserSchoolGroupAssignmentModel,
+)
+from app.models.audit import AuditEventModel
+from app.models.export import ExportJobModel
+from app.models.import_batch import ImportBatchModel
+from app.models.organization import SchoolGroupModel, SchoolGroupSchoolModel, SchoolModel
+from app.models.role import RoleModel, UserRoleModel
+from app.models.survey import (
     SurveyAnswerModel,
     SurveyConsentModel,
-    SurveyExportJobModel,
-    SurveyMLLabelModel,
     SurveyNLPAnalysisModel,
     SurveyQuestionModel,
     SurveyResponseModel,
     SurveyResponseRevisionModel,
     SurveyTemplateModel,
-    TeacherModel,
+)
+from app.models.teacher import TeacherModel
+from app.models.work_type import WorkTypeModel
+from app.models.workload import (
+    ActualWorkEntryModel,
+    DailyWorkLogModel,
+    PlannedWorkItemModel,
     TeacherWorkloadNormModel,
-    UserRoleModel,
-    UserSchoolAccessModel,
-    UserSchoolGroupAssignmentModel,
-    WorkTypeModel,
     WorkloadPlanVersionModel,
 )
+from app.models.workload_legacy import DailyWorkloadActualModel, DailyWorkloadPlanModel
