@@ -6,7 +6,8 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from app.core.enum import DayType, RoleCode, WorkLocation, WorkUnit
+from app.core.enum import DayType, RoleCode, WorkLocation, WorkUnit, WorkloadTemplateWorkTypeCode
+from app.core.workload_import_contract import DAY_TYPES, WORK_TYPE_CODES
 from app.db.database import Base
 from app.schemas.work_type import WorkTypeCreate
 from app.schemas.workload import ActualWorkEntryCreate, DailyWorkLogCreate
@@ -38,6 +39,11 @@ def test_role_codes_match_specification():
     assert {role.value for role in RoleCode} == {
         "teacher", "director", "head", "group_head", "system_admin",
     }
+
+
+def test_workload_import_contract_is_derived_from_enums():
+    assert DAY_TYPES == frozenset(item.value for item in DayType)
+    assert WORK_TYPE_CODES == tuple(item.value for item in WorkloadTemplateWorkTypeCode)
 
 
 def test_work_type_has_no_persistence_unit_fields():

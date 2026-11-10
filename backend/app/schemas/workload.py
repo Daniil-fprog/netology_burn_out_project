@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.enum import DailyLogStatus, PlanStatus, WorkLocation, WorkUnit
+from app.core.enum import DailyLogStatus, DayType, PlanStatus, WorkLocation, WorkUnit
 from app.core.work_duration import to_clock_hours
 from app.schemas.common import ORMModel
 
@@ -81,7 +81,7 @@ class PlannedWorkItemCreate(ClockHourDurationInput):
     teacher_id: str
     work_type_id: str
     work_date: date
-    day_type: str = Field(max_length=40)
+    day_type: DayType
     subject: str | None = Field(default=None, max_length=150)
     sequence_no: int = Field(default=1, ge=1)
     comment: str | None = None
@@ -93,7 +93,7 @@ class PlannedWorkItemOut(ORMModel):
     teacher_id: str
     work_type_id: str
     work_date: date
-    day_type: str
+    day_type: DayType
     subject: str | None
     duration_hours: Decimal
     sequence_no: int
@@ -130,7 +130,7 @@ class ActualWorkEntryOut(ORMModel):
 
 
 class ActualPatch(BaseModel):
-    day_type: str | None = Field(default=None, max_length=40)
+    day_type: DayType | None = None
     status: DailyLogStatus | None = None
     comment: str | None = Field(default=None, max_length=3000)
     entries: list[ActualWorkEntryCreate] | None = None
@@ -150,7 +150,7 @@ class ActualPatch(BaseModel):
 class DailyWorkLogCreate(BaseModel):
     teacher_id: str
     work_date: date
-    day_type: str = Field(max_length=40)
+    day_type: DayType
     status: DailyLogStatus = DailyLogStatus.NOT_STARTED
     comment: str | None = Field(default=None, max_length=3000)
     entries: list[ActualWorkEntryCreate] = Field(default_factory=list)
@@ -170,7 +170,7 @@ class DailyWorkLogOut(ORMModel):
     id: str
     teacher_id: str
     work_date: date
-    day_type: str
+    day_type: DayType
     status: DailyLogStatus
     comment: str | None
     completed_at: datetime | None

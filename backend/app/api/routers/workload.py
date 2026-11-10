@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import MAX_UPLOAD_BYTES, PRIVATE_UPLOAD_DIR
 from app.core.security import get_current_user
 from app.core.work_duration import to_teaching_hours
+from app.core.workload_import_contract import ACADEMIC_HOUR_FIELDS, ACTUAL_HEADERS, NORM_HEADERS, PLAN_HEADERS
 from app.core.access import (
     FACT_ROLES,
     PLAN_MANAGER_ROLES,
@@ -46,10 +47,7 @@ from app.schemas.work_type import WorkTypeCreate, WorkTypeOut, WorkTypeUpdate
 from app.schemas.workload import ActualPatch
 from app.services.analytics_service import get_planned_dashboard
 from app.services.work_type_service import archive_work_type, create_work_type, list_work_types, update_work_type
-from app.services.workload_service import (
-    ACADEMIC_HOUR_FIELDS, ACTUAL_HEADERS, NORM_HEADERS, PLAN_HEADERS,
-    daily_dict, import_workbook, parse_workbook, validation_report,
-)
+from app.services.workload_service import daily_dict, import_workbook, parse_workbook, validation_report
 
 
 router = APIRouter(prefix="/api/v1", tags=["Teacher workload"])
