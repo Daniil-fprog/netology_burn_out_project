@@ -8,7 +8,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import PSEUDONYM_SECRET
@@ -33,41 +32,17 @@ from app.models.survey import (
 from app.models.teacher import TeacherModel
 from app.models.user import UserModel
 from app.models.workload import DailyWorkLogModel, PlannedWorkItemModel, WorkloadPlanVersionModel
+from app.schemas.survey import (
+    SurveyConsentRequest,
+    SurveyCorrectionRequest,
+    SurveyDraftPatch,
+    SurveyResponseRequest,
+)
 from app.services.survey_service import active_consent, response_dict, seed_surveys, validate_answers, validate_period
 from app.services.workload_service import total
 
 
 router = APIRouter(prefix="/api/v1", tags=["Teacher surveys"])
-
-
-class ConsentCreate(BaseModel):
-    policy_version: str = Field(min_length=1, max_length=50)
-    purpose: str = Field(pattern="^(survey_storage|research_processing|external_nlp)$")
-    method: str = Field(min_length=1, max_length=30)
-    proof_reference: str | None = None
-
-
-class ResponseCreate(BaseModel):
-    survey_code: str
-    survey_version: str | None = None
-    assessment_date: date
-    period_start: date
-    period_end: date
-    comment_reference_date: date | None = None
-    source: str = Field(default="web_form", pattern="^(web_form|mobile|api|legacy_excel)$")
-    status: str = Field(default="draft", pattern="^(draft|submitted)$")
-    client_request_id: str | None = None
-    consent_record_id: str | None = None
-    answers: dict[str, Any] = Field(default_factory=dict)
-
-
-class DraftPatch(BaseModel):
-    answers: dict[str, Any]
-
-
-class Correction(BaseModel):
-    reason: str = Field(min_length=1, max_length=1000)
-    answers: dict[str, Any]
 
 
 def pagination(items: list, page: int, size: int) -> dict:
@@ -132,7 +107,7 @@ async def import_templates(
 
 
 @router.post("/schools/{school_id}/teachers/{teacher_id}/survey-consents", status_code=201)
-def grant_consent(school_id: str, teacher_id: str, data: ConsentCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+def grant_consent(school_id: str, teacher_id: str, data: SurveyConsentRequest, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, {"teacher"})
     own_teacher = require_own_teacher(db, user.id, school_id)
     if own_teacher.id != teacher_id: raise HTTPException(status_code=404, detail="Педагог не найден")
@@ -153,7 +128,7 @@ def withdraw_consent(school_id: str, consent_id: str, db: Session = Depends(get_
 
 
 @router.post("/schools/{school_id}/survey-responses", status_code=201)
-def create_response(school_id: str, data: ResponseCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+def create_response(school_id: str, data: SurveyResponseRequest, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, {"teacher"})
     teacher = require_own_teacher(db, user.id, school_id)
     teacher_id = teacher.id
@@ -183,7 +158,7 @@ def create_response(school_id: str, data: ResponseCreate, db: Session = Depends(
 
 
 @router.patch("/schools/{school_id}/survey-responses/{response_id}")
-def patch_draft(school_id: str, response_id: str, data: DraftPatch, if_match: str | None = Header(default=None, alias="If-Match"), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+def patch_draft(school_id: str, response_id: str, data: SurveyDraftPatch, if_match: str | None = Header(default=None, alias="If-Match"), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, {"teacher"}); own_teacher = require_own_teacher(db, user.id, school_id); item = get_response(db, school_id, response_id)
     if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Ответ не найден")
     if item.status != "draft": raise HTTPException(status_code=409, detail="Можно менять только черновик")
@@ -211,7 +186,7 @@ def submit_draft(school_id: str, response_id: str, db: Session = Depends(get_db)
 
 
 @router.post("/schools/{school_id}/survey-responses/{response_id}/corrections")
-def correct_response(school_id: str, response_id: str, data: Correction, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+def correct_response(school_id: str, response_id: str, data: SurveyCorrectionRequest, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, {"teacher"}); own_teacher = require_own_teacher(db, user.id, school_id); item = get_response(db, school_id, response_id)
     if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Ответ не найден")
     if item.status != "submitted": raise HTTPException(status_code=409, detail="Исправлять можно только submitted")

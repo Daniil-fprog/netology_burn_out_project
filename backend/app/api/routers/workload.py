@@ -39,9 +39,13 @@ from app.models.workload import (
     WorkloadPlanVersionModel,
 )
 from app.schemas.access import AccessCreate
+from app.schemas.analytics import PlannedDashboardOut
 from app.schemas.organization import SchoolCreate
 from app.schemas.teacher import TeacherCreate
+from app.schemas.work_type import WorkTypeCreate, WorkTypeOut, WorkTypeUpdate
 from app.schemas.workload import ActualPatch
+from app.services.analytics_service import get_planned_dashboard
+from app.services.work_type_service import archive_work_type, create_work_type, list_work_types, update_work_type
 from app.services.workload_service import (
     ACADEMIC_HOUR_FIELDS, ACTUAL_HEADERS, NORM_HEADERS, PLAN_HEADERS,
     daily_dict, import_workbook, parse_workbook, validation_report,
@@ -49,6 +53,7 @@ from app.services.workload_service import (
 
 
 router = APIRouter(prefix="/api/v1", tags=["Teacher workload"])
+WORK_TYPE_EDITOR_ROLES = {"head", "group_head", "system_admin"}
 
 
 def page(items: list, page_no: int, page_size: int) -> dict:
@@ -58,6 +63,56 @@ def page(items: list, page_no: int, page_size: int) -> dict:
 
 def batch_dict(item: ImportBatchModel) -> dict:
     return {"id": item.id, "school_id": item.school_id, "original_filename": item.original_filename, "sha256": item.sha256, "status": item.status, "mode": item.mode, "effective_from": item.effective_from, "rows_total": item.rows_total, "rows_created": item.rows_created, "rows_updated": item.rows_updated, "rows_skipped": item.rows_skipped, "validation_report": item.validation_report, "imported_at": item.imported_at}
+
+
+@router.get("/dashboard/planned", response_model=PlannedDashboardOut)
+def planned_dashboard(
+    school_id: str,
+    date_from: date,
+    date_to: date,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user),
+):
+    require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
+    try:
+        return get_planned_dashboard(db, {school_id}, date_from, date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/work-types", response_model=list[WorkTypeOut])
+def work_types(
+    include_archived: bool = False,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user),
+):
+    roles = user_role_codes(db, user.id)
+    if roles.isdisjoint({"teacher", "director", "head", "group_head", "system_admin"}):
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    if include_archived and roles.isdisjoint(WORK_TYPE_EDITOR_ROLES):
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    return list_work_types(db, include_archived=include_archived)
+
+
+@router.post("/work-types", response_model=WorkTypeOut, status_code=201)
+def add_work_type(data: WorkTypeCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    return create_work_type(db, data, user.id)
+
+
+@router.patch("/work-types/{work_type_id}", response_model=WorkTypeOut)
+def edit_work_type(work_type_id: str, data: WorkTypeUpdate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    return update_work_type(db, work_type_id, data, user.id)
+
+
+@router.post("/work-types/{work_type_id}/archive", response_model=WorkTypeOut)
+def remove_work_type(work_type_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    return archive_work_type(db, work_type_id, user.id)
 
 
 @router.post("/schools", status_code=201)
