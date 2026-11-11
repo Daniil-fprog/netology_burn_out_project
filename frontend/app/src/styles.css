@@ -1,7 +1,7 @@
 html, body, #root { margin: 0; min-height: 100%; }
 body { background: #F4F7F6; color: #1E2B28; -webkit-font-smoothing: antialiased; }
-.page { padding: 24px; max-width: 1280px; margin: 0 auto; }
-.page--narrow { max-width: 760px; }
+.page { padding: 24px 32px; max-width: 1920px; margin: 0 auto; }
+.page--narrow { max-width: 960px; }
 .page-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .page-head h1 { margin: 0; font-size: 26px; font-weight: 600; line-height: 1.25; }
 .page-head .sub { color: #55625F; font-size: 15px; margin-top: 4px; }
@@ -64,7 +64,7 @@ body { background: #F4F7F6; color: #1E2B28; -webkit-font-smoothing: antialiased;
 .btn-dashed-primary { border: 1px dashed #1F7A6D !important; color: #1F7A6D !important; }
 .page--with-footer { padding-bottom: 120px; }
 .sticky-footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: #fff; border-top: 1px solid #DCE5E2; padding: 12px 16px 16px; }
-.sticky-footer-inner { max-width: 760px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.sticky-footer-inner { max-width: 896px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .sticky-footer-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-left: auto; }
 @media (min-width: 992px) { .sticky-footer { left: 248px; } }
 @media (max-width: 640px) {
@@ -92,3 +92,80 @@ body { background: #F4F7F6; color: #1E2B28; -webkit-font-smoothing: antialiased;
 .history-row:first-child { border-top: 0; }
 .score-sq { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; font-size: 13px; font-weight: 600; flex: none; }
 .score-sq--empty { border: 1px dashed #B9C4C1; color: #55625F; box-sizing: border-box; font-weight: 400; }
+
+/* ---------- общее для страниц руководителя ---------- */
+.ant-table-thead > tr > th { white-space: normal; line-height: 1.3; }
+.range-compact { width: 310px; max-width: 100%; }
+.range-compact .ant-picker-input > input { text-align: center; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.period-filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.school-chip { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 8px; background: #F4F7F6; border: 1px solid #DCE5E2; color: #55625F; font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #55625F; font-weight: 400; }
+.legend-dot--missing { background: repeating-linear-gradient(45deg, #C9D2CF 0 2px, #F4F7F6 2px 5px); }
+.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: #55625F; }
+.tag-ok { background: #DCFCE7 !important; color: #166534 !important; font-weight: 500; }
+.tag-partial { background: #FEF3C7 !important; color: #8A4B08 !important; font-weight: 500; }
+.tag-err { background: #FDECE4 !important; color: #9A3412 !important; font-weight: 500; }
+
+/* ---------- дашборд: столбики на CSS ---------- */
+.vbars { display: flex; align-items: flex-end; gap: 16px; height: 220px; padding: 0 4px; }
+.vbar { flex: 1 1 0; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.vbar-fill { width: 100%; max-width: 72px; border-radius: 6px 6px 0 0; min-height: 2px; }
+.vbar-value { font-size: 13px; font-weight: 600; color: #4E6390; }
+.vbar-label { font-size: 12px; color: #55625F; white-space: nowrap; border-top: 1px solid #DCE5E2; width: 100%; text-align: center; padding-top: 6px; }
+.hbars { display: flex; flex-direction: column; gap: 10px; }
+.hbar { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) 48px; gap: 10px; align-items: center; font-size: 14px; }
+.hbar-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbar-track { background: #EEF1F4; border-radius: 4px; height: 14px; }
+.hbar-fill { height: 14px; border-radius: 4px; }
+.hbar-value { text-align: right; font-weight: 600; color: #4E6390; font-variant-numeric: tabular-nums; }
+
+/* ---------- виды работ ---------- */
+.info-banner { background: #E3F1EE; color: #145A50; border-radius: 12px; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: baseline; margin-bottom: 16px; font-size: 14px; }
+.info-banner strong { font-size: 15px; }
+.info-banner--warn { background: #FBEBDC; color: #7A4410; }
+.weight-chip { display: inline-block; min-width: 48px; text-align: center; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+
+/* ---------- импорт плана ---------- */
+.import-params { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.inline-field { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: #55625F; }
+.import-steps { list-style: none; margin: 16px 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 14px; color: #55625F; }
+.import-steps li { display: inline-flex; align-items: center; gap: 6px; }
+.import-steps li.done { color: #166534; }
+.import-steps li.current { color: #1E2B28; font-weight: 600; }
+.step-num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid currentColor; font-size: 12px; }
+.import-file { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.file-badge { width: 40px; height: 40px; border-radius: 8px; background: #E3F1EE; color: #1F7A6D; display: grid; place-items: center; font-size: 20px; flex: none; }
+.errors-table { margin-top: 12px; border: 1px solid #F3C9B5; border-radius: 8px; overflow: hidden; }
+.errors-table .ant-table-thead > tr > th { background: #FFF7F3; }
+.import-warnings { margin: 10px 0 0; padding-left: 20px; font-size: 13px; color: #55625F; }
+
+/* ---------- аналитика: дни ---------- */
+.day-chart-scroll { overflow-x: auto; padding-bottom: 4px; }
+.day-grid { display: grid; gap: 4px; align-items: center; }
+.day-grid--bars { align-items: end; height: 190px; border-bottom: 1px solid #DCE5E2; }
+.day-grid--scores { margin-top: 4px; }
+.day-grid--scores:first-of-type { margin-top: 12px; }
+.day-axis { align-self: stretch; display: flex; flex-direction: column; justify-content: space-between; font-size: 12px; color: #55625F; padding-bottom: 2px; }
+.day-bars { display: flex; gap: 2px; align-items: flex-end; height: 100%; }
+.day-bar { flex: 1 1 0; border-radius: 3px 3px 0 0; min-height: 1px; }
+.day-bar--missing { height: 100%; background: repeating-linear-gradient(45deg, #C9D2CF 0 2px, #F4F7F6 2px 5px); }
+.day-label { text-align: center; font-size: 12px; color: #55625F; padding-top: 4px; }
+.day-row-label { font-size: 13px; color: #55625F; }
+.day-grid--scores .day-row-label { padding-top: 0; }
+.day-score { height: 26px; border-radius: 5px; display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+.day-score--empty { border: 1px dashed #B9C4C1; color: #55625F; font-weight: 400; box-sizing: border-box; }
+.type-bars { display: flex; flex-direction: column; gap: 12px; }
+.type-bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; margin-bottom: 4px; }
+.type-bar-track { position: relative; height: 10px; background: #F4F7F6; border-radius: 4px; }
+.type-bar-fact { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: #D9822B; }
+.type-bar-plan { position: absolute; top: -3px; bottom: -3px; width: 3px; border-radius: 2px; background: #4E6390; }
+.place-bar { display: flex; height: 28px; border-radius: 6px; overflow: hidden; background: #F4F7F6; }
+.comments-note { display: flex; gap: 10px; border-top: 1px solid #DCE5E2; margin-top: 16px; padding-top: 12px; font-size: 14px; color: #55625F; line-height: 1.45; }
+.comments-note .anticon { margin-top: 3px; }
+@media (max-width: 640px) {
+  .hbar { grid-template-columns: 110px minmax(0, 1fr) 40px; }
+  .vbars { gap: 8px; }
+}

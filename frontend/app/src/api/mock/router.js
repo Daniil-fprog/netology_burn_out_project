@@ -224,7 +224,178 @@ const routes = [
       return responseOut(r, true);
     },
   },
+  // ---------- справочник видов работ: изменение ----------
+  {
+    method: 'POST', path: '/api/v1/work-types',
+    handle: ({ user, body }) => {
+      requireRole(user, WORK_TYPE_EDITORS);
+      if (!/^[a-z0-9_-]+$/.test(body.code ?? '')) throw new ApiError(422, 'Код: только латиница в нижнем регистре, цифры, «_» и «-»');
+      if (db.workTypes.some((w) => w.code === body.code)) throw new ApiError(409, 'Тип работы с таким кодом уже существует');
+      const w = {
+        id: `WT-${Date.now()}`, code: body.code, name: body.name, category_group: body.category_group,
+        complexity_weight: Number(body.complexity_weight ?? 0), requires_comment: Boolean(body.requires_comment),
+        is_active: true, description: body.description ?? null, archived_at: null, created_at: nowIso(), updated_at: nowIso(),
+      };
+      checkWeight(w.complexity_weight);
+      db.workTypes.push(w);
+      return clone(w);
+    },
+  },
+  {
+    method: 'PATCH', path: '/api/v1/work-types/:id',
+    handle: ({ user, params, body }) => {
+      requireRole(user, WORK_TYPE_EDITORS);
+      const w = db.workTypes.find((x) => x.id === params.id);
+      if (!w) throw new ApiError(404, 'Тип работы не найден');
+      if (body.complexity_weight !== undefined) checkWeight(Number(body.complexity_weight));
+      for (const k of ['name', 'category_group', 'complexity_weight', 'requires_comment', 'is_active', 'description']) {
+        if (body[k] !== undefined) w[k] = k === 'complexity_weight' ? Number(body[k]) : body[k];
+      }
+      if (body.is_active === true) w.archived_at = null;
+      w.updated_at = nowIso();
+      return clone(w);
+    },
+  },
+  {
+    method: 'POST', path: '/api/v1/work-types/:id/archive',
+    handle: ({ user, params }) => {
+      requireRole(user, WORK_TYPE_EDITORS);
+      const w = db.workTypes.find((x) => x.id === params.id);
+      if (!w) throw new ApiError(404, 'Тип работы не найден');
+      w.is_active = false;
+      w.archived_at = nowIso();
+      w.updated_at = nowIso();
+      return clone(w);
+    },
+  },
+  // ---------- плановый дашборд (форма PlannedDashboardOut) ----------
+  {
+    method: 'GET', path: '/api/v1/dashboard/planned',
+    handle: ({ user, query }) => {
+      requireSchool(user, query.school_id, PLAN_ROLES);
+      if (!query.date_from || !query.date_to || query.date_from > query.date_to) throw new ApiError(422, 'Неверный период');
+      const teachers = db.teachers.filter((t) => t.school_id === query.school_id);
+      const tIds = new Set(teachers.map((t) => t.id));
+      const items = db.planItems.filter((p) => tIds.has(p.teacher_id) && p.work_date >= query.date_from && p.work_date <= query.date_to);
+      const teachingIds = new Set(db.workTypes.filter((w) => w.category_group === 'teaching').map((w) => w.id));
+      const weekOf = (d) => isoWeekStart(d);
+      const agg = (keyFn, filter = () => true) => {
+        const m = new Map();
+        for (const p of items.filter(filter)) m.set(keyFn(p), (m.get(keyFn(p)) ?? 0) + p.duration_hours);
+        return m;
+      };
+      const teaching = agg((p) => p.teacher_id, (p) => teachingIds.has(p.work_type_id));
+      const totals = agg((p) => p.teacher_id);
+      const weekly = agg((p) => weekOf(p.work_date));
+      const bySubject = agg((p) => p.subject ?? db.teachers.find((t) => t.id === p.teacher_id).subject);
+      const values = [...teaching.values()].sort((a, b) => a - b);
+      const median = values.length ? (values.length % 2 ? values[(values.length - 1) / 2] : (values[values.length / 2 - 1] + values[values.length / 2]) / 2) : null;
+      const r = (x) => Math.round(x * 100) / 100;
+      return {
+        date_from: query.date_from,
+        date_to: query.date_to,
+        kpi: {
+          planned_teaching_hours: r(values.reduce((s, x) => s + x, 0)),
+          teacher_count: totals.size,
+          average_teaching_hours: values.length ? r(values.reduce((s, x) => s + x, 0) / values.length) : null,
+          median_teaching_hours: median == null ? null : r(median),
+        },
+        weekly: [...weekly.entries()].sort().map(([week_start, hours]) => ({ week_start, hours: r(hours) })),
+        by_subject: [...bySubject.entries()].sort().map(([subject, hours]) => ({ subject, hours: r(hours) })),
+        by_school: [{ school: db.schools.find((s) => s.id === query.school_id).name, hours: r([...totals.values()].reduce((s, x) => s + x, 0)) }],
+        teachers: [...totals.keys()].sort().map((tid) => {
+          const t = db.teachers.find((x) => x.id === tid);
+          const n = db.norms.find((x) => x.teacher_id === tid);
+          const weeks = new Set(items.filter((p) => p.teacher_id === tid).map((p) => weekOf(p.work_date))).size;
+          const expected = n ? n.contract_teaching_hours_per_week * weeks : null;
+          return {
+            teacher_id: tid, full_name: t.full_name, subject: t.subject,
+            planned_hours: r(totals.get(tid)), planned_teaching_hours: r(teaching.get(tid) ?? 0),
+            individual_norm_hours: expected,
+            deviation_from_norm_hours: expected == null ? null : r((teaching.get(tid) ?? 0) - expected),
+          };
+        }),
+      };
+    },
+  },
+  // ---------- плановые работы построчно (в backend нет) ----------
+  {
+    method: 'GET', path: '/api/v1/schools/:schoolId/workload/plan-items', missing: true,
+    handle: ({ user, params, query }) => {
+      requireSchool(user, params.schoolId, PLAN_ROLES);
+      const tIds = new Set(db.teachers.filter((t) => t.school_id === params.schoolId).map((t) => t.id));
+      const items = db.planItems
+        .filter((p) => tIds.has(p.teacher_id))
+        .filter((p) => !query.teacher_id || p.teacher_id === query.teacher_id)
+        .filter((p) => !query.work_type_id || p.work_type_id === query.work_type_id)
+        .filter((p) => (!query.date_from || p.work_date >= query.date_from) && (!query.date_to || p.work_date <= query.date_to))
+        .sort((a, b) => a.work_date.localeCompare(b.work_date) || a.teacher_id.localeCompare(b.teacher_id) || a.sequence_no - b.sequence_no)
+        .map((p) => ({ ...clone(p), plan_version: 1, source_import_filename: 'plan_nov_w2.xlsx' }));
+      return page(items, query);
+    },
+  },
+  // ---------- импорт Excel ----------
+  {
+    // Файл не разбираем: имитируем отчёт. В имени файла есть «error» — вернём ошибки строк.
+    method: 'POST', path: '/api/v1/schools/:schoolId/workload/imports/validate',
+    handle: ({ user, params, body }) => {
+      requireSchool(user, params.schoolId, PLAN_ROLES);
+      return mockValidation(body);
+    },
+  },
+  {
+    method: 'POST', path: '/api/v1/schools/:schoolId/workload/imports',
+    handle: ({ user, params, body }) => {
+      requireSchool(user, params.schoolId, PLAN_ROLES);
+      const report = mockValidation(body);
+      if (!report.valid) throw new ApiError(422, 'Файл содержит ошибки', report);
+      const item = {
+        id: `I-${Date.now()}`, school_id: params.schoolId, original_filename: body.get('file').name, sha256: 'mock',
+        status: 'completed', mode: body.get('mode') ?? 'insert_only', effective_from: body.get('effective_from'),
+        rows_total: report.summary.to_create, rows_created: report.summary.to_create, rows_updated: 0, rows_skipped: 0,
+        validation_report: report, imported_at: nowIso(), created_by_name: user.name,
+      };
+      db.imports.unshift(item);
+      return clone(item);
+    },
+  },
+  // ---------- файлы: в режиме заглушек не формируются ----------
+  ...['/api/v1/schools/:schoolId/workload/template', '/api/v1/schools/:schoolId/workload/exports', '/api/v1/schools/:schoolId/workload/imports/:importId/file'].map((path) => ({
+    method: 'GET', path,
+    handle: () => { throw new ApiError(501, 'В режиме заглушек файлы не формируются — нужен настоящий backend'); },
+  })),
 ];
+
+const WORK_TYPE_EDITORS = ['head', 'group_head', 'system_admin'];
+function requireRole(user, roles) {
+  if (!user.roles.some((r) => roles.includes(r))) throw new ApiError(403, 'Недостаточно прав');
+}
+function checkWeight(v) {
+  if (!(v >= 0 && v <= 1)) throw new ApiError(422, 'Коэффициент сложности должен быть от 0 до 1');
+}
+function isoWeekStart(date) {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function mockValidation(body) {
+  const file = body?.get?.('file');
+  if (!file) throw new ApiError(422, 'Файл не передан');
+  if (!/\.xlsx$/i.test(file.name)) throw new ApiError(422, 'Нужен файл .xlsx');
+  const withErrors = /error|ошиб/i.test(file.name);
+  return {
+    valid: !withErrors,
+    template_version: '1.0',
+    summary: { teachers: 6, norms: 6, daily_plans: 145, daily_actuals: 0, to_create: withErrors ? 142 : 145, to_update: 0, to_skip: 0 },
+    errors: withErrors ? [
+      { sheet: 'План_дня', row: 17, field: 'external_id', message: 'Учитель не найден в этой школе' },
+      { sheet: 'План_дня', row: 58, field: 'row', message: 'Некорректная дата: 31.11.2026' },
+      { sheet: 'План_дня', row: 96, field: 'row', message: 'Время не может быть отрицательным' },
+    ] : [],
+    warnings: [{ sheet: 'Учителя_нормы', row: 5, field: 'effective_from', message: `Дата действия ${body.get('effective_from')} взята из параметра импорта` }],
+  };
+}
 
 // ---------- помощники нагрузки ----------
 const WT_BY_ID = Object.fromEntries(db.workTypes.map((w) => [w.id, w]));

@@ -2,7 +2,7 @@
 // после изменений была предсказуемой.
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  importsApi, surveysApi, teachersApi, workloadApi, workTypesApi,
+  dashboardApi, importsApi, plansApi, surveysApi, teachersApi, workloadApi, workTypesAdminApi, workTypesApi,
 } from './endpoints';
 
 export const qk = {
@@ -10,6 +10,8 @@ export const qk = {
   teachers: (schoolId, params) => ['schools', schoolId, 'teachers', params],
   imports: (schoolId, params) => ['schools', schoolId, 'imports', params],
   daily: (schoolId, params) => ['schools', schoolId, 'daily', params],
+  dashboard: (schoolId, params) => ['schools', schoolId, 'dashboard', params],
+  planItems: (schoolId, params) => ['schools', schoolId, 'plan-items', params],
   survey: (schoolId, code) => ['schools', schoolId, 'surveys', code],
   surveyResponses: (schoolId, params) => ['schools', schoolId, 'survey-responses', params],
 };
@@ -38,10 +40,10 @@ export const useImports = (schoolId, params) => useQuery({
 
 // ---------- нагрузка ----------
 // Неделя целиком одним запросом: из него и полоска статусов, и выбранный день.
-export const useDailyRange = (schoolId, { dateFrom, dateTo, teacherId }) => useQuery({
-  queryKey: qk.daily(schoolId, { dateFrom, dateTo, teacherId }),
-  queryFn: ({ signal }) => workloadApi.daily(schoolId, { dateFrom, dateTo, teacherId, sort: 'date_asc', pageSize: 31 }, { signal }),
-  enabled: Boolean(schoolId),
+export const useDailyRange = (schoolId, { dateFrom, dateTo, teacherId, pageSize = 31 }, { enabled = true } = {}) => useQuery({
+  queryKey: qk.daily(schoolId, { dateFrom, dateTo, teacherId, pageSize }),
+  queryFn: ({ signal }) => workloadApi.daily(schoolId, { dateFrom, dateTo, teacherId, sort: 'date_asc', pageSize }, { signal }),
+  enabled: Boolean(schoolId) && enabled,
   placeholderData: keepPreviousData,
   staleTime: 30_000,
 });
@@ -65,10 +67,10 @@ export const useSurvey = (schoolId, code) => useQuery({
   staleTime: 60 * 60_000,
 });
 
-export const useSurveyResponses = (schoolId, params) => useQuery({
+export const useSurveyResponses = (schoolId, params, { enabled = true } = {}) => useQuery({
   queryKey: qk.surveyResponses(schoolId, params),
   queryFn: ({ signal }) => surveysApi.responses(schoolId, params, { signal }),
-  enabled: Boolean(schoolId),
+  enabled: Boolean(schoolId) && enabled,
   placeholderData: keepPreviousData,
 });
 
@@ -83,4 +85,46 @@ export function useSaveSurveyResponse(schoolId) {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['schools', schoolId, 'survey-responses'] }),
   });
+}
+
+// ---------- руководитель ----------
+export const useWorkTypeMutations = () => {
+  const qc = useQueryClient();
+  const onSuccess = () => qc.invalidateQueries({ queryKey: ['work-types'] });
+  return {
+    save: useMutation({
+      mutationFn: ({ id, body }) => (id ? workTypesAdminApi.update(id, body) : workTypesAdminApi.create(body)),
+      onSuccess,
+    }),
+    archive: useMutation({ mutationFn: (id) => workTypesAdminApi.archive(id), onSuccess }),
+    restore: useMutation({ mutationFn: (id) => workTypesAdminApi.update(id, { is_active: true }), onSuccess }),
+  };
+};
+
+export const usePlannedDashboard = (schoolId, params) => useQuery({
+  queryKey: qk.dashboard(schoolId, params),
+  queryFn: ({ signal }) => dashboardApi.planned(schoolId, params, { signal }),
+  enabled: Boolean(schoolId && params.dateFrom && params.dateTo),
+  placeholderData: keepPreviousData,
+});
+
+export const usePlanItems = (schoolId, params) => useQuery({
+  queryKey: qk.planItems(schoolId, params),
+  queryFn: ({ signal }) => plansApi.items(schoolId, params, { signal }),
+  enabled: Boolean(schoolId),
+  placeholderData: keepPreviousData,
+});
+
+/** Все педагоги школы одним запросом (для выпадающих списков и подписей). */
+export const useAllTeachers = (schoolId) => useTeachers(schoolId, { page: 1, pageSize: 200 });
+
+export function useImportMutations(schoolId) {
+  const qc = useQueryClient();
+  return {
+    validate: useMutation({ mutationFn: (form) => plansApi.validate(schoolId, form) }),
+    commit: useMutation({
+      mutationFn: (form) => plansApi.import(schoolId, form),
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['schools', schoolId] }),
+    }),
+  };
 }

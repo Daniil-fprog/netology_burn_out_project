@@ -14,7 +14,13 @@ const Placeholder = lazy(() => import('./pages/Placeholder'));
 const pages = {
   'my-workload': lazy(() => import('./pages/MyWorkload')),
   'my-survey': lazy(() => import('./pages/DailySurvey')),
+  dashboard: lazy(() => import('./pages/Dashboard')),
+  plans: lazy(() => import('./pages/Plans')),
+  analytics: lazy(() => import('./pages/TeacherAnalytics')),
+  'work-types': lazy(() => import('./pages/WorkTypes')),
 };
+
+const AnalyticsPage = pages.analytics;
 
 function Guard({ section, children }) {
   const { role } = useSession();
@@ -64,6 +70,7 @@ export default function App() {
             />
           );
         })}
+        <Route path="analytics/teachers/:teacherId" element={<Guard section="analytics"><AnalyticsPage /></Guard>} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

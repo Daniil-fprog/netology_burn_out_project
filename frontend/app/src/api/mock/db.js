@@ -167,8 +167,14 @@ for (let d = START; !d.isAfter(END); d = d.add(1, 'day')) {
   }
 }
 
+// форма batch_dict из backend; created_by_name — в backend нет (нужно для колонки «Пользователь»)
+const imp = (id, file, daysAgo, mode, total, created, updated, skipped, status) => ({
+  id, school_id: 'S101', original_filename: file, sha256: 'mock', status, mode, effective_from: '2026-09-01',
+  rows_total: total, rows_created: created, rows_updated: updated, rows_skipped: skipped, validation_report: null,
+  imported_at: dayjs(TODAY).subtract(daysAgo, 'day').hour(10).format('YYYY-MM-DDTHH:mm:ss'), created_by_name: 'Кузнецов Андрей М.',
+});
 export const imports = [
-  { id: 'I3', school_id: 'S101', status: 'completed', mode: 'upsert', original_filename: 'plan_nov_w2.xlsx', created_at: dayjs(TODAY).subtract(3, 'day').hour(10).format('YYYY-MM-DDTHH:mm:ss'), rows_total: 152, rows_inserted: 140, rows_updated: 12, rows_rejected: 0 },
-  { id: 'I2', school_id: 'S101', status: 'completed_with_errors', mode: 'insert_only', original_filename: 'plan_nov_w1.xlsx', created_at: dayjs(TODAY).subtract(10, 'day').hour(9).format('YYYY-MM-DDTHH:mm:ss'), rows_total: 132, rows_inserted: 128, rows_updated: 0, rows_rejected: 4 },
-  { id: 'I1', school_id: 'S101', status: 'completed', mode: 'insert_only', original_filename: 'norms_2026_27.xlsx', created_at: dayjs(TODAY).subtract(40, 'day').hour(14).format('YYYY-MM-DDTHH:mm:ss'), rows_total: 6, rows_inserted: 6, rows_updated: 0, rows_rejected: 0 },
+  imp('I3', 'plan_nov_w2.xlsx', 3, 'upsert', 152, 140, 12, 0, 'completed'),
+  imp('I2', 'plan_nov_w1.xlsx', 10, 'insert_only', 132, 128, 0, 4, 'completed'),
+  imp('I1', 'norms_2026_27.xlsx', 40, 'insert_only', 6, 6, 0, 0, 'completed'),
 ];

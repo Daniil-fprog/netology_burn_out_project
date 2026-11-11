@@ -23,7 +23,7 @@ export default function ServerTable({ query, page, pageSize, onPageChange, ...re
         onChange: (p, size) => onPageChange(size !== pageSize ? 1 : p, size),
         hideOnSinglePage: true,
       }}
-      scroll={{ x: 'max-content' }}
+      scroll={{ x: 720 }}
       {...rest}
     />
   );
