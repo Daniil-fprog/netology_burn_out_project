@@ -1,1 +1,7 @@
 .DS_Store
+app/node_modules
+app/dist
+app/.env
+app/.env.*
+!app/.env.example
+app/vite.config.js.timestamp-*

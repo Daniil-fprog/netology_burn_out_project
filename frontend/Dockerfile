@@ -1,7 +1,19 @@
+FROM node:22-alpine AS build
+
+WORKDIR /app
+
+COPY app/package.json app/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY app/ ./
+ARG VITE_API_MODE=real
+ENV VITE_API_MODE=$VITE_API_MODE
+RUN npm run build
+
+
 FROM nginx:1.27-alpine
 
-COPY ./src /usr/share/nginx/html
+COPY --from=build /app/dist /usr/share/nginx/html
 COPY ./nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
-
