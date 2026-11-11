@@ -1,5 +1,3 @@
-// Таблица с серверной пагинацией: принимает ответ backend { page, page_size, total, items }.
-// Первая загрузка — серые строки; смена страницы — прошлые данные остаются на месте.
 import { Table } from 'antd';
 import { TableSkeleton } from './Skeletons';
 

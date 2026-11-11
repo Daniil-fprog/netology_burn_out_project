@@ -86,7 +86,7 @@ export default function TeacherAnalytics() {
     for (let d = range[0]; !d.isAfter(range[1], 'day'); d = d.add(1, 'day')) {
       const date = fmtDate(d);
       const r = byDate[date];
-      if (!r && (d.isoWeekday() > 5 || date >= today)) continue; // выходные без данных и будущее не показываем
+      if (!r && (d.isoWeekday() > 5 || date >= today)) continue;
       days.push({
         date,
         row: r,
@@ -131,7 +131,6 @@ export default function TeacherAnalytics() {
     };
   }, [daily.data, surveys.data, workTypesQ.data, range]);
 
-  // руководитель без выбранного педагога — открываем первого из списка
   if (!isTeacher && !paramId) {
     const first = teachersQ.data?.items?.[0];
     if (first) return <Navigate to={`/analytics/teachers/${first.id}`} replace />;

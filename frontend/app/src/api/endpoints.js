@@ -1,4 +1,3 @@
-// Функции = эндпоинты из documentation/api.md. Имена параметров как у backend.
 import { request } from './http';
 
 export const authApi = {
@@ -13,9 +12,8 @@ export const workTypesApi = {
 };
 
 export const teachersApi = {
-  // q — поиск по ФИО/предмету, в backend пока нет (только subject)
-  list: (schoolId, { subject, q, page = 1, pageSize = 20 } = {}, opts) => request('GET', `/api/v1/schools/${schoolId}/teachers`, {
-    ...opts, query: { subject, q, page, page_size: pageSize },
+  list: (schoolId, { subject, q, onlyActive, page = 1, pageSize = 20 } = {}, opts) => request('GET', `/api/v1/schools/${schoolId}/teachers`, {
+    ...opts, query: { subject, q, only_active: onlyActive, page, page_size: pageSize },
   }),
 };
 
@@ -71,4 +69,31 @@ export const filesApi = {
     query: { date_from: dateFrom, date_to: dateTo, teacher_id: teacherId, report },
   }),
   importFile: (schoolId, importId) => request('GET', `/api/v1/schools/${schoolId}/workload/imports/${importId}/file`),
+};
+
+export const schoolsApi = {
+  // нет в backend: школы, доступные пользователю, со сводкой
+  list: (opts) => request('GET', '/api/v1/schools', opts),
+  norms: (schoolId, teacherId, opts) => request('GET', `/api/v1/schools/${schoolId}/teachers/${teacherId}/norms`, opts),
+  addTeacher: (schoolId, body) => request('POST', `/api/v1/schools/${schoolId}/teachers`, { body }),
+};
+
+// нет в backend: очередь выгрузок (export_jobs из ТЗ)
+export const exportsApi = {
+  list: ({ page = 1, pageSize = 10 } = {}, opts) => request('GET', '/api/v1/exports', { ...opts, query: { page, page_size: pageSize } }),
+  create: (body) => request('POST', '/api/v1/exports', { body }),
+  file: (id) => request('GET', `/api/v1/exports/${id}/file`),
+};
+
+// нет в backend: управление пользователями и правами
+export const adminApi = {
+  users: ({ q, role, status, page = 1, pageSize = 20 } = {}, opts) => request('GET', '/api/v1/admin/users', {
+    ...opts, query: { q, role, status, page, page_size: pageSize },
+  }),
+  schools: (opts) => request('GET', '/api/v1/admin/schools', opts),
+  groups: (opts) => request('GET', '/api/v1/school-groups', opts),
+  setAccess: (userId, body) => request('PUT', `/api/v1/admin/users/${userId}/access`, { body }),
+  block: (userId, unblock = false) => request('POST', `/api/v1/admin/users/${userId}/block`, { body: { unblock } }),
+  create: (body) => request('POST', '/api/v1/admin/users', { body }),
+  audit: (userId, opts) => request('GET', `/api/v1/admin/users/${userId}/audit`, opts),
 };

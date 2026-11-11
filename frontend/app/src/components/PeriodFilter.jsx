@@ -4,7 +4,6 @@ import dayjs from 'dayjs';
 
 const fmt = (d) => d.format('YYYY-MM-DD');
 
-/** Готовые периоды: текущая неделя / последние 4 недели / свой диапазон. */
 export function presetRange(kind, base = dayjs()) {
   if (kind === 'week') {
     const s = base.startOf('isoWeek');
@@ -16,7 +15,6 @@ export function presetRange(kind, base = dayjs()) {
 
 export default function PeriodFilter({ value, onChange }) {
   const { kind, dateFrom, dateTo } = value;
-  // последний диапазон, выбранный вручную: возвращаем его при переключении на «Период»
   const [lastCustom, setLastCustom] = useState(kind === 'custom' ? { dateFrom, dateTo } : null);
 
   const pickKind = (k) => {

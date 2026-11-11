@@ -10,7 +10,6 @@ import { colors } from '../theme';
 const SURVEY_CODE = 'daily_checkin';
 const HISTORY_PAGE_SIZE = 10;
 const fmtDate = (d) => d.format('YYYY-MM-DD');
-// оттенки основного цвета для шкал 1–5 (без «светофора»: это не диагноз)
 const SCALE_FG = ['#145A50', '#145A50', '#0E3F38', '#FFFFFF', '#FFFFFF'];
 
 function ScaleQuestion({ q, value, disabled, onChange }) {
@@ -107,7 +106,6 @@ export default function DailySurvey() {
 
   const survey = useSurvey(school?.id, SURVEY_CODE);
   const weekFrom = fmtDate(dayjs().subtract(6, 'day'));
-  // последние 7 дней — для чипов дат и подстановки ответа выбранного дня
   const recent = useSurveyResponses(school?.id, { surveyCode: SURVEY_CODE, dateFrom: weekFrom, dateTo: today, pageSize: 20 });
   const history = useSurveyResponses(school?.id, { surveyCode: SURVEY_CODE, page: historyPage, pageSize: HISTORY_PAGE_SIZE });
   const save = useSaveSurveyResponse(school?.id);
@@ -119,7 +117,6 @@ export default function DailySurvey() {
   useEffect(() => {
     if (current === undefined) return;
     setAnswers(current?.answers ?? {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, current?.id, current?.lock_version, recent.isSuccess]);
 
   const questions = useMemo(() => survey.data?.questions ?? [], [survey.data]);

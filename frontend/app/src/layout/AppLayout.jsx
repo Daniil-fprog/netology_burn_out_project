@@ -26,7 +26,7 @@ function DevBanner() {
   return (
     <div className="dev-banner">
       <ExperimentOutlined />
-      <span>Режим заглушек · войти как:</span>
+      <span className="dev-banner-text">Режим заглушек · войти как:</span>
       <Select
         size="small"
         value={role}
@@ -92,13 +92,20 @@ export default function AppLayout() {
           <div style={{ flex: 1 }} />
           <Dropdown
             trigger={['click']}
-            menu={{ items: [{ key: 'logout', icon: <LogoutOutlined />, label: 'Выйти', onClick: logout }] }}
+            menu={{
+              items: [
+                ...(screens.sm ? [] : [{ key: 'who', label: <span>{user.name}<br /><span className="muted" style={{ fontSize: 13 }}>{roleLabel}</span></span>, disabled: true }, { type: 'divider' }]),
+                { key: 'logout', icon: <LogoutOutlined />, label: 'Выйти', onClick: logout },
+              ],
+            }}
           >
-            <button type="button" className="user-chip" aria-label="Профиль">
-              <span style={{ textAlign: 'right', lineHeight: 1.2, minWidth: 0 }}>
-                <Typography.Text strong ellipsis style={{ display: 'block', fontSize: 14 }}>{user.name}</Typography.Text>
-                <Typography.Text type="secondary" style={{ fontSize: 13 }}>{roleLabel}</Typography.Text>
-              </span>
+            <button type="button" className="user-chip" aria-label={`Профиль: ${user.name}, ${roleLabel}`}>
+              {screens.sm && (
+                <span style={{ textAlign: 'right', lineHeight: 1.2, minWidth: 0 }}>
+                  <Typography.Text strong ellipsis style={{ display: 'block', fontSize: 14, maxWidth: 220 }}>{user.name}</Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: 13 }}>{roleLabel}</Typography.Text>
+                </span>
+              )}
               <Avatar style={{ background: colors.soft, color: colors.primary, flex: 'none' }}>{user.name[0]}</Avatar>
             </button>
           </Dropdown>

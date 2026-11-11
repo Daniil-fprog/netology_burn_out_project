@@ -11,6 +11,10 @@ import { antTheme } from './theme';
 import { queryClient } from './api/queryClient';
 import { SessionProvider } from './session/SessionContext';
 import App from './App';
+import '@fontsource/golos-text/400.css';
+import '@fontsource/golos-text/500.css';
+import '@fontsource/golos-text/600.css';
+import '@fontsource/golos-text/700.css';
 import './styles.css';
 
 dayjs.extend(isoWeek);
@@ -21,7 +25,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ConfigProvider locale={ruRU} theme={antTheme}>
       <AntApp>
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <SessionProvider>
               <App />
             </SessionProvider>

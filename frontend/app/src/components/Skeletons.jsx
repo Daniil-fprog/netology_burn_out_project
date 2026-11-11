@@ -1,5 +1,3 @@
-// Серые заглушки на время загрузки: повторяют раскладку страницы, чтобы контент
-// не «прыгал», когда приходят данные.
 import { Card, Col, Row, Skeleton } from 'antd';
 
 export function KpiSkeleton({ count = 4 }) {

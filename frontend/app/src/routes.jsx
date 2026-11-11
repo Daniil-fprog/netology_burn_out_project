@@ -5,7 +5,6 @@ import {
 
 const MANAGERS = ['director', 'head', 'group_head'];
 
-// Единый список разделов: из него строятся меню и проверка доступа к маршруту.
 export const sections = [
   { key: 'dashboard', path: '/dashboard', label: 'Плановая нагрузка', icon: <DashboardOutlined />, roles: MANAGERS },
   { key: 'plans', path: '/workload/plans', label: 'Управление планом', icon: <TableOutlined />, roles: MANAGERS },

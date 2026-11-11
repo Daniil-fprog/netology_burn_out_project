@@ -12,7 +12,7 @@ import { PageHead, StatusTag, Kpi, Deviation, fmtH } from '../components/common'
 import { KpiSkeleton, TableSkeleton } from '../components/Skeletons';
 import { colors } from '../theme';
 
-const ACADEMIC_HOUR = 0.75; // ТЗ: 1 академический час = 0,75 обычного часа
+const ACADEMIC_HOUR = 0.75;
 const PLACES = [
   { value: 'school', label: 'В школе' },
   { value: 'home', label: 'Дома' },
@@ -29,11 +29,7 @@ function lessonsWord(n) {
   return 'уроков';
 }
 
-/**
- * Строки формы: по одной на каждую плановую работу + внеплановые записи.
- * В backend длительность > 0, поэтому «0 ч» хранится как отсутствие записи:
- * у завершённого дня это 0, у черновика — «не заполнено» (нет данных ≠ 0).
- */
+// backend не хранит 0 ч: в завершённом дне пустая строка = 0, в черновике — нет данных
 function buildRows(day) {
   if (!day) return [];
   const planItems = day.plan?.items ?? [];
@@ -104,7 +100,7 @@ function UnplannedModal({ open, workTypes, onCancel, onAdd }) {
       okText="Добавить"
       cancelText="Отмена"
       onCancel={onCancel}
-      destroyOnClose
+      destroyOnHidden
       onOk={async () => {
         const v = await form.validateFields();
         onAdd(v);
@@ -158,7 +154,6 @@ export default function MyWorkload() {
   const wtById = useMemo(() => Object.fromEntries(workTypes.map((w) => [w.id, w])), [workTypes]);
   const lessonsTypeId = workTypes.find((w) => w.code === 'lessons')?.id;
 
-  // ответ на прошлую неделю показываем, пока грузится новая, — но не как данные выбранного дня
   const weekReady = week.data && !week.isPlaceholderData;
   const day = weekReady ? week.data.items.find((r) => r.work_date === date) ?? null : undefined;
   const status = day?.actual?.status ?? 'not_started';
@@ -170,8 +165,6 @@ export default function MyWorkload() {
     setRows(buildRows(day));
     setDirty(false);
     setEditing(day?.actual?.status !== 'completed');
-    // пересобираем строки только при смене дня или после сохранения
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, weekReady, day?.actual?.updated_at]);
 
   const strip = Array.from({ length: 7 }, (_, i) => {
@@ -302,6 +295,11 @@ export default function MyWorkload() {
             styles={{ body: { paddingTop: 0 } }}
           >
             {isFuture && <Alert type="info" showIcon message="Будущая дата: можно посмотреть план, факт вносится после." style={{ margin: '12px 0' }} />}
+            {!isFuture && !readOnly && totals.missing > 0 && (
+              <div className="missing-hint">
+                Пустое поле — «нет данных», а не 0. Если работу не делали, поставьте 0.
+              </div>
+            )}
             {!rows.length && (
               <div className="muted" style={{ padding: '16px 0' }}>
                 На этот день плановых работ нет.{!isFuture && ' Если вы работали — добавьте внеплановую работу.'}
@@ -357,9 +355,6 @@ export default function MyWorkload() {
                     disabled={readOnly}
                     onChange={(v) => update(r.key, { place: v })}
                   />
-                  {r.hours == null && !isFuture && (
-                    <div className="muted" style={{ fontSize: 13 }}>Не заполнено — в отчётах будет «нет данных», а не 0</div>
-                  )}
                 </div>
               );
             })}

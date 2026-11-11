@@ -1,4 +1,3 @@
-// Палитра B «Бирюзовый» + фиксированные семантические цвета (см. решение от 08.11.2026).
 export const colors = {
   primary: '#1F7A6D',
   bg: '#F4F7F6',
@@ -7,7 +6,6 @@ export const colors = {
   muted: '#55625F',
   border: '#DCE5E2',
   soft: '#E3F1EE',
-  // 1–5 шкалы самочувствия: оттенки основного цвета, без «светофора» (не диагноз)
   scale: ['#D5EBE7', '#A6D3CB', '#6DB3A7', '#2B8272', '#145A50'],
   plan: '#7A8FB5',
   planText: '#4E6390',
@@ -38,6 +36,9 @@ export const antTheme = {
     fontFamily: "'Golos Text', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
     fontSize: 16,
     borderRadius: 8,
+    colorInfoBg: colors.soft,
+    colorInfoBorder: '#A6D3CB',
+    colorTextPlaceholder: '#76837F',
   },
   components: {
     Layout: { siderBg: '#FFFFFF', headerBg: '#FFFFFF', headerHeight: 56, headerPadding: '0 16px' },

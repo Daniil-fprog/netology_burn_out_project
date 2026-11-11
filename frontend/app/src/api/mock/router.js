@@ -1,19 +1,15 @@
-// Заглушка сервера: отвечает на те же METHOD + путь, что backend (documentation/api.md),
-// и в том же формате ответов. Маршруты с пометкой `missing` в backend пока нет:
-// это предложения к API, их список — в MISSING_ENDPOINTS.
+// Заглушка backend: те же адреса и формат ответов, что в documentation/api.md
 import { ApiError } from '../errors';
 import * as db from './db';
 import surveyCatalog from './surveys.json';
 
 const MANAGERS = ['director', 'head', 'group_head'];
 const PLAN_ROLES = MANAGERS;
-// директору факт и опросы недоступны (ТЗ, матрица доступа)
 const FACT_ROLES = ['teacher', 'head', 'group_head'];
 const SURVEY_ROLES = FACT_ROLES;
 const clone = (x) => structuredClone(x);
 const latency = () => new Promise((r) => setTimeout(r, 150 + Math.random() * 250));
 
-// Формат пагинации backend: { page, page_size, total, items }
 function page(items, query) {
   const pageNo = Math.max(1, Number(query.page ?? 1));
   const size = Math.min(200, Math.max(1, Number(query.page_size ?? 50)));
@@ -43,6 +39,7 @@ const routes = [
     handle: ({ body }) => {
       const user = db.users.find((u) => u.login === body?.login);
       if (!user || body?.password !== 'demo') throw new ApiError(401, 'Неверный логин или пароль');
+      if (!user.is_active) throw new ApiError(403, 'Вход заблокирован администратором');
       return { access_token: `mock-token-${user.id}`, token_type: 'bearer' };
     },
   },
@@ -54,7 +51,6 @@ const routes = [
     },
   },
   {
-    // Роли, доступные школы и связь с педагогом. В backend /users/me этого не отдаёт.
     method: 'GET', path: '/api/v1/me/access', missing: true,
     handle: ({ user }) => ({
       roles: user.roles,
@@ -78,13 +74,15 @@ const routes = [
         .filter((t) => t.school_id === params.schoolId)
         .filter((t) => !own || t.id === own)
         .filter((t) => !query.subject || t.subject === query.subject)
+        .filter((t) => query.only_active !== 'true' || t.is_active) // в backend нет
         .filter((t) => !q || t.full_name.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q))
         .sort((a, b) => a.external_id.localeCompare(b.external_id))
         .map((t) => {
           const n = db.norms.find((x) => x.teacher_id === t.id && x.effective_to == null);
           return {
             id: t.id, external_id: t.external_id, subject: t.subject, is_active: t.is_active,
-            full_name: t.full_name, // в ответе backend сейчас нет ФИО
+            full_name: t.full_name,
+            has_account: Boolean(t.user_id), // в backend нет
             current_norm: n && {
               effective_from: n.effective_from,
               contract_teaching_hours_per_week: n.contract_teaching_hours_per_week,
@@ -103,7 +101,6 @@ const routes = [
       return page(clone(db.imports.filter((i) => i.school_id === params.schoolId)), query);
     },
   },
-  // ---------- нагрузка по дням ----------
   {
     method: 'GET', path: '/api/v1/schools/:schoolId/workload/daily',
     handle: ({ user, params, query }) => {
@@ -121,7 +118,6 @@ const routes = [
     },
   },
   {
-    // Создание дневного журнала, если его ещё нет (например, работа в выходной без плана).
     method: 'POST', path: '/api/v1/schools/:schoolId/workload/daily', missing: true,
     handle: ({ user, params, body }) => {
       requireSchool(user, params.schoolId, ['teacher']);
@@ -151,7 +147,6 @@ const routes = [
       return dailyRow(own, log.work_date, true);
     },
   },
-  // ---------- опросы ----------
   {
     method: 'GET', path: '/api/v1/schools/:schoolId/surveys/:code',
     handle: ({ user, params }) => {
@@ -224,7 +219,6 @@ const routes = [
       return responseOut(r, true);
     },
   },
-  // ---------- справочник видов работ: изменение ----------
   {
     method: 'POST', path: '/api/v1/work-types',
     handle: ({ user, body }) => {
@@ -268,7 +262,6 @@ const routes = [
       return clone(w);
     },
   },
-  // ---------- плановый дашборд (форма PlannedDashboardOut) ----------
   {
     method: 'GET', path: '/api/v1/dashboard/planned',
     handle: ({ user, query }) => {
@@ -318,7 +311,7 @@ const routes = [
       };
     },
   },
-  // ---------- плановые работы построчно (в backend нет) ----------
+  // нет в backend: построчный список плана
   {
     method: 'GET', path: '/api/v1/schools/:schoolId/workload/plan-items', missing: true,
     handle: ({ user, params, query }) => {
@@ -334,9 +327,7 @@ const routes = [
       return page(items, query);
     },
   },
-  // ---------- импорт Excel ----------
   {
-    // Файл не разбираем: имитируем отчёт. В имени файла есть «error» — вернём ошибки строк.
     method: 'POST', path: '/api/v1/schools/:schoolId/workload/imports/validate',
     handle: ({ user, params, body }) => {
       requireSchool(user, params.schoolId, PLAN_ROLES);
@@ -359,12 +350,218 @@ const routes = [
       return clone(item);
     },
   },
-  // ---------- файлы: в режиме заглушек не формируются ----------
   ...['/api/v1/schools/:schoolId/workload/template', '/api/v1/schools/:schoolId/workload/exports', '/api/v1/schools/:schoolId/workload/imports/:importId/file'].map((path) => ({
     method: 'GET', path,
     handle: () => { throw new ApiError(501, 'В режиме заглушек файлы не формируются — нужен настоящий backend'); },
   })),
 ];
+
+routes.push(
+  {
+    method: 'GET', path: '/api/v1/schools', missing: true,
+    handle: ({ user }) => (db.schoolAccess[user.id] ?? []).map((id) => {
+      const s = db.schools.find((x) => x.id === id);
+      const ts = db.teachers.filter((t) => t.school_id === id);
+      const director = db.users.find((u) => u.roles.includes('director') && (db.schoolAccess[u.id] ?? []).includes(id));
+      return {
+        id: s.id, name: s.name, external_code: s.external_code,
+        group: db.schoolGroups.find((g) => g.id === s.group_id)?.name ?? null,
+        teacher_count: ts.filter((t) => t.is_active).length,
+        linked_accounts: ts.filter((t) => t.user_id).length,
+        director_name: director?.name ?? null,
+      };
+    }),
+  },
+  {
+    method: 'GET', path: '/api/v1/schools/:schoolId/teachers/:teacherId/norms',
+    handle: ({ user, params }) => {
+      requireSchool(user, params.schoolId, [...PLAN_ROLES, 'teacher']);
+      const own = ownTeacherId(user, params.schoolId);
+      if (own && own !== params.teacherId) throw new ApiError(403, 'Недостаточно прав');
+      return clone(db.norms.filter((n) => n.teacher_id === params.teacherId))
+        .sort((a, b) => b.effective_from.localeCompare(a.effective_from));
+    },
+  },
+  {
+    method: 'POST', path: '/api/v1/schools/:schoolId/teachers',
+    handle: ({ user, params, body }) => {
+      requireSchool(user, params.schoolId, PLAN_ROLES);
+      if (!body.external_id?.trim() || !body.full_name?.trim() || !body.subject?.trim()) throw new ApiError(422, 'Заполните код, ФИО и предмет');
+      if (db.teachers.some((t) => t.school_id === params.schoolId && t.external_id === body.external_id)) throw new ApiError(409, 'Педагог с таким кодом уже есть в школе');
+      const t = { id: `T-${Date.now()}`, school_id: params.schoolId, external_id: body.external_id.trim(), full_name: body.full_name.trim(), subject: body.subject.trim(), is_active: true, user_id: body.user_id ?? null };
+      db.teachers.push(t);
+      return { id: t.id, external_id: t.external_id, subject: t.subject, is_active: true };
+    },
+  },
+  {
+    method: 'GET', path: '/api/v1/exports', missing: true,
+    handle: ({ user, query }) => {
+      tickJobs();
+      return page(clone(db.exportJobs.filter((j) => j.user_id === user.id)).sort((a, b) => b.created_at.localeCompare(a.created_at)), query);
+    },
+  },
+  {
+    method: 'POST', path: '/api/v1/exports', missing: true,
+    handle: ({ user, body }) => {
+      const allowed = REPORT_ROLES[body.report];
+      if (!allowed) throw new ApiError(422, 'Неизвестный отчёт');
+      if (!user.roles.some((r) => allowed.includes(r))) throw new ApiError(403, 'Этот отчёт недоступен для вашей роли');
+      for (const sid of body.school_ids ?? []) requireSchool(user, sid, allowed);
+      if (!body.date_from || !body.date_to || body.date_from > body.date_to) throw new ApiError(422, 'Неверный период');
+      const job = {
+        id: `X-${Date.now()}`, user_id: user.id, report: body.report,
+        params: { school_ids: body.school_ids, teacher_id: body.teacher_id ?? null, date_from: body.date_from, date_to: body.date_to, format: body.format },
+        status: 'running', created_at: nowIso(), expires_at: null, _readyAt: Date.now() + 4000,
+      };
+      db.exportJobs.push(job);
+      return clone(job);
+    },
+  },
+  {
+    method: 'GET', path: '/api/v1/exports/:id/file', missing: true,
+    handle: () => { throw new ApiError(501, 'В режиме заглушек файлы не формируются — нужен настоящий backend'); },
+  },
+  {
+    method: 'GET', path: '/api/v1/admin/users', missing: true,
+    handle: ({ user, query }) => {
+      requireRole(user, ['system_admin']);
+      const q = (query.q ?? '').trim().toLowerCase();
+      const items = db.users
+        .filter((u) => !q || u.name.toLowerCase().includes(q) || u.login.toLowerCase().includes(q))
+        .filter((u) => !query.role || u.roles.includes(query.role))
+        .filter((u) => !query.status || (query.status === 'active' ? u.is_active : !u.is_active))
+        .map(adminUserOut);
+      return page(items, query);
+    },
+  },
+  {
+    method: 'GET', path: '/api/v1/school-groups', missing: true,
+    handle: ({ user }) => {
+      requireRole(user, ['system_admin']);
+      return clone(db.schoolGroups);
+    },
+  },
+  {
+    method: 'GET', path: '/api/v1/admin/schools', missing: true,
+    handle: ({ user }) => {
+      requireRole(user, ['system_admin']);
+      return db.schools.map((s) => ({
+        id: s.id, name: s.name,
+        teachers: db.teachers.filter((t) => t.school_id === s.id).map((t) => ({ id: t.id, full_name: t.full_name, user_id: t.user_id })),
+      }));
+    },
+  },
+  {
+    method: 'PUT', path: '/api/v1/admin/users/:id/access', missing: true,
+    handle: ({ user, params, body }) => {
+      requireRole(user, ['system_admin']);
+      const u = db.users.find((x) => x.id === Number(params.id));
+      if (!u) throw new ApiError(404, 'Пользователь не найден');
+      const role = body.role;
+      if (!['teacher', 'director', 'head', 'group_head', 'system_admin'].includes(role)) throw new ApiError(422, 'Неизвестная роль');
+      let schools = [];
+      if (role === 'director' || role === 'teacher') {
+        if ((body.school_ids ?? []).length !== 1) throw new ApiError(422, 'Нужна ровно одна школа');
+        schools = body.school_ids;
+      } else if (role === 'head') {
+        if (!(body.school_ids ?? []).length) throw new ApiError(422, 'Выберите хотя бы одну школу');
+        schools = body.school_ids;
+      } else if (role === 'group_head') {
+        if (!(body.group_ids ?? []).length) throw new ApiError(422, 'Выберите хотя бы одну группу');
+        schools = db.schoolGroups.filter((g) => body.group_ids.includes(g.id)).flatMap((g) => g.school_ids);
+      }
+      if (role === 'teacher') {
+        const t = db.teachers.find((x) => x.id === body.teacher_id && x.school_id === schools[0]);
+        if (!t) throw new ApiError(422, 'Выберите карточку педагога в этой школе');
+        if (t.user_id && t.user_id !== u.id) throw new ApiError(409, 'Карточка уже связана с другой учётной записью');
+        db.teachers.forEach((x) => { if (x.user_id === u.id) x.user_id = null; });
+        t.user_id = u.id;
+      } else {
+        db.teachers.forEach((x) => { if (x.user_id === u.id) x.user_id = null; });
+      }
+      const before = adminUserOut(u);
+      u.roles = [role];
+      db.schoolAccess[u.id] = [...new Set(schools)];
+      db.groupAccess[u.id] = role === 'group_head' ? body.group_ids : [];
+      u.updated_at = nowIso();
+      const after = adminUserOut(u);
+      db.accessAudit.push({ id: `A-${Date.now()}`, user_id: u.id, at: nowIso(), actor: user.name, text: `роль «${ROLE_RU[role]}», область: ${after.scope_label}${before.role !== role ? ` (была «${ROLE_RU[before.role] ?? '—'}»)` : ''}` });
+      return after;
+    },
+  },
+  {
+    method: 'POST', path: '/api/v1/admin/users/:id/block', missing: true,
+    handle: ({ user, params, body }) => {
+      requireRole(user, ['system_admin']);
+      const u = db.users.find((x) => x.id === Number(params.id));
+      if (!u) throw new ApiError(404, 'Пользователь не найден');
+      if (u.id === user.id) throw new ApiError(422, 'Нельзя заблокировать себя');
+      u.is_active = Boolean(body.unblock);
+      db.accessAudit.push({ id: `A-${Date.now()}`, user_id: u.id, at: nowIso(), actor: user.name, text: u.is_active ? 'вход разблокирован' : 'вход заблокирован' });
+      return adminUserOut(u);
+    },
+  },
+  {
+    method: 'POST', path: '/api/v1/admin/users', missing: true,
+    handle: ({ user, body }) => {
+      requireRole(user, ['system_admin']);
+      if (!body.name?.trim() || !body.login?.trim()) throw new ApiError(422, 'Укажите имя и логин');
+      if (db.users.some((u) => u.login === body.login.trim())) throw new ApiError(409, 'Логин занят');
+      const u = { id: Math.max(...db.users.map((x) => x.id)) + 1, name: body.name.trim(), login: body.login.trim(), roles: [], phone: null, is_active: true, created_at: nowIso(), updated_at: nowIso() };
+      db.users.push(u);
+      db.schoolAccess[u.id] = [];
+      db.accessAudit.push({ id: `A-${Date.now()}`, user_id: u.id, at: nowIso(), actor: user.name, text: 'учётная запись создана' });
+      return adminUserOut(u);
+    },
+  },
+  {
+    method: 'GET', path: '/api/v1/admin/users/:id/audit', missing: true,
+    handle: ({ user, params }) => {
+      requireRole(user, ['system_admin']);
+      return clone(db.accessAudit.filter((a) => a.user_id === Number(params.id))).sort((a, b) => b.at.localeCompare(a.at));
+    },
+  },
+);
+
+const ROLE_RU = { teacher: 'Преподаватель', director: 'Директор', head: 'Глава', group_head: 'Глава группы', system_admin: 'Администратор' };
+const REPORT_ROLES = {
+  plan: ['teacher', 'director', 'head', 'group_head'],
+  plan_vs_fact: ['teacher', 'head', 'group_head'],
+  summary: ['head', 'group_head'],
+  surveys: ['teacher', 'head', 'group_head'],
+  imports: ['director', 'head', 'group_head'],
+  audit: ['head', 'group_head'],
+  ml_dataset: ['head', 'group_head'],
+};
+
+function tickJobs() {
+  const now = Date.now();
+  for (const j of db.exportJobs) {
+    if (j.status === 'running' && j._readyAt <= now) {
+      j.status = 'ready';
+      const d = new Date(now + 7 * 864e5);
+      j.expires_at = d.toISOString().slice(0, 19);
+    }
+  }
+}
+
+function adminUserOut(u) {
+  const role = u.roles[0] ?? null;
+  const schoolIds = db.schoolAccess[u.id] ?? [];
+  const groupIds = db.groupAccess[u.id] ?? [];
+  const teacher = db.teachers.find((t) => t.user_id === u.id) ?? null;
+  const schoolName = (id) => db.schools.find((s) => s.id === id)?.name.replace(/^МБОУ «|»$/g, '').replace(/ — .*/, '') ?? id;
+  const scope = role === 'group_head'
+    ? db.schoolGroups.filter((g) => groupIds.includes(g.id)).map((g) => g.name).join(', ')
+    : schoolIds.map(schoolName).join(', ');
+  return {
+    id: u.id, name: u.name, login: u.login, is_active: u.is_active, role,
+    school_ids: schoolIds, group_ids: groupIds,
+    teacher: teacher ? { id: teacher.id, full_name: teacher.full_name, school_id: teacher.school_id } : null,
+    scope_label: scope || '—',
+    updated_at: u.updated_at,
+  };
+}
 
 const WORK_TYPE_EDITORS = ['head', 'group_head', 'system_admin'];
 function requireRole(user, roles) {
@@ -397,10 +594,8 @@ function mockValidation(body) {
   };
 }
 
-// ---------- помощники нагрузки ----------
 const WT_BY_ID = Object.fromEntries(db.workTypes.map((w) => [w.id, w]));
 const sumH = (arr) => Math.round(arr.reduce((s, x) => s + Number(x.duration_hours || 0), 0) * 100) / 100;
-// локальное время без зоны — как в остальных моковых датах
 const nowIso = () => {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
@@ -408,7 +603,6 @@ const nowIso = () => {
 };
 const byCode = (items) => Object.fromEntries(db.workTypes.map((w) => [w.code, sumH(items.filter((x) => x.work_type_id === w.id))]));
 
-// Та же форма, что daily_dict в backend/app/services/workload_service.py.
 // Дополнительно (в backend нет): plan.items и actual.entries — построчные данные для формы учителя.
 function dailyRow(teacherId, date, isOwner) {
   const teacher = db.teachers.find((t) => t.id === teacherId);
@@ -475,7 +669,6 @@ function applyLog(log, body, user) {
   log.updated_at = nowIso();
 }
 
-// ---------- помощники опросов ----------
 function responseOut(r, includeComments) {
   const survey = surveyCatalog.surveys.find((x) => x.code === r.survey_code);
   const textIds = new Set(survey.questions.filter((q) => q.type === 'long_text').map((q) => q.id));
@@ -491,7 +684,6 @@ function ownResponse(user, params) {
   return r;
 }
 
-// Те же проверки, что validate_answers в backend/app/services/survey_service.py
 function validateAnswers(survey, answers, submitted) {
   const byId = Object.fromEntries(survey.questions.map((q) => [q.id, q]));
   const unknown = Object.keys(answers).filter((k) => !byId[k]);
@@ -508,7 +700,7 @@ function validateAnswers(survey, answers, submitted) {
   }
 }
 
-export const MISSING_ENDPOINTS = routes.filter((r) => r.missing).map((r) => `${r.method} ${r.path}`);
+export const missingEndpoints = () => routes.filter((r) => r.missing).map((r) => `${r.method} ${r.path}`);
 
 function match(pattern, path) {
   const p = pattern.split('/');

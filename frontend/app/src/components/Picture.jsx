@@ -1,5 +1,3 @@
-// Картинки: браузер берёт AVIF, если умеет, иначе WebP, иначе исходник.
-// Размеры обязательны — чтобы место было зарезервировано до загрузки.
 export default function Picture({ src, avif, webp, alt, width, height, eager = false, ...rest }) {
   const base = src.replace(/\.(png|jpe?g)$/i, '');
   return (

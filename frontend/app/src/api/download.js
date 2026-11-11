@@ -1,4 +1,3 @@
-// Скачивание файла, полученного из API как Blob.
 export function saveBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -10,7 +9,6 @@ export function saveBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Вызывает fn → Blob и сохраняет; ошибки показывает через message (App.useApp). */
 export async function download(fn, filename, message) {
   const hide = message.loading('Готовим файл…', 0);
   try {

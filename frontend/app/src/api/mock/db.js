@@ -1,6 +1,3 @@
-// Синтетическая «база» для режима заглушек. Поля и коды повторяют модели backend
-// (backend/app/models, backend/app/db/seed.py), чтобы переключение на реальный API
-// не требовало правок в страницах.
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 
@@ -8,10 +5,8 @@ dayjs.extend(isoWeek);
 
 export const TODAY = dayjs().format('YYYY-MM-DD');
 
-// ТЗ: 1 академический час = 0,75 обычного часа. В БД всё хранится в обычных часах.
 export const ACADEMIC_HOUR = 0.75;
 
-// ---------- пользователи и доступ ----------
 // Пароль у всех демо-пользователей: demo
 export const users = [
   { id: 1, name: 'Белова Ирина В.', login: 'teacher', roles: ['teacher'] },
@@ -28,10 +23,8 @@ export const schools = [
   { id: 'S102', name: 'МБОУ «Школа № 102 — Демонстрационная»', external_code: 'DEMO-SCHOOL-102', group_id: 'G1' },
 ];
 
-// user_school_access + назначения групп
 export const schoolAccess = { 1: ['S101'], 2: ['S101'], 3: ['S101', 'S102'], 4: ['S101', 'S102'], 5: [] };
 
-// ---------- справочник видов работ (коды из seed.py) ----------
 const wt = (id, code, name, category_group, complexity_weight, requires_comment = false) => ({
   id, code, name, category_group, complexity_weight, requires_comment,
   is_active: true, description: null, archived_at: null, created_at: '2026-09-01T09:00:00', updated_at: '2026-09-01T09:00:00',
@@ -49,8 +42,6 @@ export const workTypes = [
 ];
 const WT = Object.fromEntries(workTypes.map((w) => [w.code, w.id]));
 
-// ---------- педагоги и нормы ----------
-// contract — уч. ч в неделю по договору, rate — норма за ставку
 const teacherSeed = [
   ['T001', 'S101', 'Абрамова Елена С.', 'Математика', 12, 18, false, 0.9, null],
   ['T002', 'S101', 'Белова Ирина В.', 'Русский язык и литература', 18, 18, true, 1.6, 1],
@@ -72,7 +63,6 @@ export const norms = teacherSeed.map(([id, , , , contract, rate]) => ({
   comment: null, plan_source: 'IMPORT_teacher_norms.xlsx', source_import_id: 'I1',
 }));
 
-// ---------- план и факт ----------
 function mulberry32(seed) {
   return function rand() {
     let t = (seed += 0x6d2b79f5);
@@ -87,8 +77,8 @@ const r2 = (x) => Math.round(x * 100) / 100;
 const START = dayjs(TODAY).subtract(5, 'week').startOf('isoWeek');
 const END = dayjs(TODAY).endOf('isoWeek');
 
-export const planItems = []; // PlannedWorkItem
-export const dailyLogs = []; // DailyWorkLog + entries
+export const planItems = [];
+export const dailyLogs = [];
 export const surveyResponses = [];
 
 let seq = 1;
@@ -119,7 +109,7 @@ for (let d = START; !d.isAfter(END); d = d.add(1, 'day')) {
     planItems.push(...items);
 
     if (!d.isBefore(dayjs(TODAY), 'day')) continue;
-    if (rand() < 0.08) continue; // нет данных ≠ 0
+    if (rand() < 0.08) continue;
     const overrun = 1 + t._gradingLoad * 0.15 + (rand() - 0.4) * 0.35;
     const entries = items.map((p) => {
       const isLesson = p.work_type_id === WT.lessons;
@@ -177,4 +167,25 @@ export const imports = [
   imp('I3', 'plan_nov_w2.xlsx', 3, 'upsert', 152, 140, 12, 0, 'completed'),
   imp('I2', 'plan_nov_w1.xlsx', 10, 'insert_only', 132, 128, 0, 4, 'completed'),
   imp('I1', 'norms_2026_27.xlsx', 40, 'insert_only', 6, 6, 0, 0, 'completed'),
+];
+
+users.push({ id: 6, name: 'Петров Сергей Л.', login: 'petrov', roles: ['teacher'], phone: null, is_active: false, created_at: '2026-09-01T09:00:00', updated_at: '2026-10-20T12:00:00' });
+schoolAccess[6] = ['S102'];
+export const groupAccess = { 4: ['G1'] };
+
+norms.push({
+  id: 'N-T002-old', teacher_id: 'T002', effective_from: '2025-09-01', effective_to: '2026-08-31',
+  contract_teaching_hours_per_week: 16, standard_teaching_hours_per_rate: 18, comment: null, plan_source: 'IMPORT_teacher_norms_2025.xlsx', source_import_id: null,
+});
+
+export const exportJobs = [
+  { id: 'X3', user_id: 3, report: 'surveys', params: { school_ids: ['S101', 'S102'], date_from: dayjs(TODAY).subtract(1, 'month').startOf('month').format('YYYY-MM-DD'), date_to: dayjs(TODAY).subtract(1, 'month').endOf('month').format('YYYY-MM-DD'), format: 'xlsx' }, status: 'ready', created_at: dayjs(TODAY).subtract(1, 'day').hour(16).format('YYYY-MM-DDTHH:mm:ss'), expires_at: dayjs(TODAY).add(6, 'day').format('YYYY-MM-DDTHH:mm:ss') },
+  { id: 'X2', user_id: 3, report: 'ml_dataset', params: { school_ids: ['S101', 'S102'], date_from: '2026-09-01', date_to: '2026-10-31', format: 'csv' }, status: 'ready', created_at: dayjs(TODAY).subtract(2, 'day').hour(11).format('YYYY-MM-DDTHH:mm:ss'), expires_at: dayjs(TODAY).add(5, 'day').format('YYYY-MM-DDTHH:mm:ss') },
+  { id: 'X1', user_id: 3, report: 'plan', params: { school_ids: ['S102'], date_from: '2026-10-01', date_to: '2026-10-31', format: 'xlsx' }, status: 'expired', created_at: dayjs(TODAY).subtract(12, 'day').hour(9).format('YYYY-MM-DDTHH:mm:ss'), expires_at: dayjs(TODAY).subtract(5, 'day').format('YYYY-MM-DDTHH:mm:ss') },
+];
+
+export const accessAudit = [
+  { id: 'A1', user_id: 3, at: '2026-09-01T09:12:00', actor: 'Системный администратор', text: 'назначена роль «Глава»' },
+  { id: 'A2', user_id: 3, at: '2026-09-01T09:13:00', actor: 'Системный администратор', text: 'добавлены школы № 101, 102' },
+  { id: 'A3', user_id: 6, at: '2026-10-20T12:00:00', actor: 'Системный администратор', text: 'вход заблокирован' },
 ];

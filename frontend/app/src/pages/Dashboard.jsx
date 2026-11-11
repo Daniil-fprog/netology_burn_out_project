@@ -12,7 +12,7 @@ import PeriodFilter, { presetRange } from '../components/PeriodFilter';
 import { KpiSkeleton, TableSkeleton } from '../components/Skeletons';
 import { colors } from '../theme';
 
-const ACADEMIC_HOUR = 0.75; // часы в БД — обычные; уч.ч = обычные / 0,75
+const ACADEMIC_HOUR = 0.75;
 const toAcademic = (h) => (h == null ? null : h / ACADEMIC_HOUR);
 const fmt1 = (v) => (v == null ? '—' : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(v));
 

@@ -4,7 +4,6 @@ import { authApi } from '../api/endpoints';
 import { clearToken, getToken, setToken } from '../api/tokenStore';
 import { setUnauthorizedHandler } from '../api/http';
 
-// Если у пользователя несколько ролей, интерфейс строится по самой «широкой».
 const ROLE_PRIORITY = ['system_admin', 'group_head', 'head', 'director', 'teacher'];
 export const ROLE_LABELS = {
   teacher: 'Преподаватель',
@@ -51,7 +50,7 @@ export function SessionProvider({ children }) {
 
   const setSchoolId = useCallback((id) => {
     setSchoolIdState(id);
-    try { localStorage.setItem(SCHOOL_KEY, id); } catch { /* ignore */ }
+    try { localStorage.setItem(SCHOOL_KEY, id); } catch {}
   }, []);
 
   const value = useMemo(() => {

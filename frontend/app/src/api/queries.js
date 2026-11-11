@@ -1,8 +1,6 @@
-// Хуки чтения данных. Ключи запросов собраны в одном месте, чтобы инвалидация
-// после изменений была предсказуемой.
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  dashboardApi, importsApi, plansApi, surveysApi, teachersApi, workloadApi, workTypesAdminApi, workTypesApi,
+  adminApi, dashboardApi, exportsApi, importsApi, schoolsApi, plansApi, surveysApi, teachersApi, workloadApi, workTypesAdminApi, workTypesApi,
 } from './endpoints';
 
 export const qk = {
@@ -16,14 +14,12 @@ export const qk = {
   surveyResponses: (schoolId, params) => ['schools', schoolId, 'survey-responses', params],
 };
 
-// Справочник меняется редко — держим дольше.
 export const useWorkTypes = ({ includeArchived = false } = {}) => useQuery({
   queryKey: qk.workTypes(includeArchived),
   queryFn: ({ signal }) => workTypesApi.list({ includeArchived }, { signal }),
   staleTime: 10 * 60_000,
 });
 
-// Постраничные списки: при смене страницы показываем прошлую, пока грузится новая.
 export const useTeachers = (schoolId, params) => useQuery({
   queryKey: qk.teachers(schoolId, params),
   queryFn: ({ signal }) => teachersApi.list(schoolId, params, { signal }),
@@ -38,8 +34,6 @@ export const useImports = (schoolId, params) => useQuery({
   placeholderData: keepPreviousData,
 });
 
-// ---------- нагрузка ----------
-// Неделя целиком одним запросом: из него и полоска статусов, и выбранный день.
 export const useDailyRange = (schoolId, { dateFrom, dateTo, teacherId, pageSize = 31 }, { enabled = true } = {}) => useQuery({
   queryKey: qk.daily(schoolId, { dateFrom, dateTo, teacherId, pageSize }),
   queryFn: ({ signal }) => workloadApi.daily(schoolId, { dateFrom, dateTo, teacherId, sort: 'date_asc', pageSize }, { signal }),
@@ -48,7 +42,6 @@ export const useDailyRange = (schoolId, { dateFrom, dateTo, teacherId, pageSize 
   staleTime: 30_000,
 });
 
-/** Сохранение дня: есть журнал — PATCH, нет — создание. */
 export function useSaveDay(schoolId) {
   const qc = useQueryClient();
   return useMutation({
@@ -59,7 +52,6 @@ export function useSaveDay(schoolId) {
   });
 }
 
-// ---------- опросы ----------
 export const useSurvey = (schoolId, code) => useQuery({
   queryKey: qk.survey(schoolId, code),
   queryFn: ({ signal }) => surveysApi.get(schoolId, code, { signal }),
@@ -74,7 +66,6 @@ export const useSurveyResponses = (schoolId, params, { enabled = true } = {}) =>
   placeholderData: keepPreviousData,
 });
 
-/** Черновик или отправка: создаёт ответ, если его ещё нет, иначе обновляет черновик и (при submit) отправляет. */
 export function useSaveSurveyResponse(schoolId) {
   const qc = useQueryClient();
   return useMutation({
@@ -87,7 +78,6 @@ export function useSaveSurveyResponse(schoolId) {
   });
 }
 
-// ---------- руководитель ----------
 export const useWorkTypeMutations = () => {
   const qc = useQueryClient();
   const onSuccess = () => qc.invalidateQueries({ queryKey: ['work-types'] });
@@ -115,7 +105,6 @@ export const usePlanItems = (schoolId, params) => useQuery({
   placeholderData: keepPreviousData,
 });
 
-/** Все педагоги школы одним запросом (для выпадающих списков и подписей). */
 export const useAllTeachers = (schoolId) => useTeachers(schoolId, { page: 1, pageSize: 200 });
 
 export function useImportMutations(schoolId) {
@@ -126,5 +115,74 @@ export function useImportMutations(schoolId) {
       mutationFn: (form) => plansApi.import(schoolId, form),
       onSuccess: () => qc.invalidateQueries({ queryKey: ['schools', schoolId] }),
     }),
+  };
+}
+
+export const useSchools = () => useQuery({
+  queryKey: ['schools-list'],
+  queryFn: ({ signal }) => schoolsApi.list({ signal }),
+  staleTime: 5 * 60_000,
+});
+
+export const useTeacherNorms = (schoolId, teacherId) => useQuery({
+  queryKey: ['schools', schoolId, 'teachers', teacherId, 'norms'],
+  queryFn: ({ signal }) => schoolsApi.norms(schoolId, teacherId, { signal }),
+  enabled: Boolean(schoolId && teacherId),
+});
+
+export function useAddTeacher(schoolId) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => schoolsApi.addTeacher(schoolId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['schools', schoolId, 'teachers'] });
+      qc.invalidateQueries({ queryKey: ['schools-list'] });
+    },
+  });
+}
+
+export const useExportJobs = (params) => useQuery({
+  queryKey: ['exports', params],
+  queryFn: ({ signal }) => exportsApi.list(params, { signal }),
+  placeholderData: keepPreviousData,
+  refetchInterval: (q) => (q.state.data?.items.some((j) => j.status === 'running') ? 3000 : false),
+});
+
+export function useCreateExport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => exportsApi.create(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['exports'] }),
+  });
+}
+
+export const useAdminUsers = (params) => useQuery({
+  queryKey: ['admin', 'users', params],
+  queryFn: ({ signal }) => adminApi.users(params, { signal }),
+  placeholderData: keepPreviousData,
+});
+
+export const useAdminDirectory = () => useQuery({
+  queryKey: ['admin', 'directory'],
+  queryFn: async ({ signal }) => {
+    const [schools, groups] = await Promise.all([adminApi.schools({ signal }), adminApi.groups({ signal })]);
+    return { schools, groups };
+  },
+  staleTime: 5 * 60_000,
+});
+
+export const useUserAudit = (userId) => useQuery({
+  queryKey: ['admin', 'audit', userId],
+  queryFn: ({ signal }) => adminApi.audit(userId, { signal }),
+  enabled: Boolean(userId),
+});
+
+export function useAdminMutations() {
+  const qc = useQueryClient();
+  const onSuccess = () => qc.invalidateQueries({ queryKey: ['admin'] });
+  return {
+    setAccess: useMutation({ mutationFn: ({ userId, body }) => adminApi.setAccess(userId, body), onSuccess }),
+    block: useMutation({ mutationFn: ({ userId, unblock }) => adminApi.block(userId, unblock), onSuccess }),
+    create: useMutation({ mutationFn: (body) => adminApi.create(body), onSuccess }),
   };
 }

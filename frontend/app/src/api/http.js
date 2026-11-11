@@ -1,9 +1,8 @@
-// Единая точка обращения к API. В режиме заглушек запросы уходят в mock/router.js,
-// иначе — fetch к backend. Страницы не знают, какой режим включён.
 import { ApiError } from './errors';
 import { getToken, clearToken } from './tokenStore';
 
-export const API_MODE = import.meta.env.VITE_API_MODE === 'real' ? 'real' : 'mock';
+// __API_MODE__ задаётся в vite.config.js: mock — заглушки, real — backend
+export const API_MODE = __API_MODE__;
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 let onUnauthorized = () => {};
@@ -44,7 +43,7 @@ async function realFetch({ method, path, query, body, token, signal }) {
 export async function request(method, path, { query, body, signal } = {}) {
   const token = getToken();
   try {
-    if (API_MODE === 'mock') {
+    if (__API_MODE__ === 'mock') {
       const { mockFetch } = await import('./mock/router');
       return await mockFetch({ method, path, query, body, token });
     }

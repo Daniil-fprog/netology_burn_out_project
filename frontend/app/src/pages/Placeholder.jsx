@@ -2,7 +2,6 @@ import { Card, Empty, Typography } from 'antd';
 import { PageHead } from '../components/common';
 import { sections } from '../routes';
 
-// Функции страниц из ТЗ (раздел 3) — чек-лист для следующей итерации.
 const todo = {
   dashboard: ['Макет утверждён — реализация на шаге 3'],
   plans: ['Макет утверждён — реализация на шаге 3'],

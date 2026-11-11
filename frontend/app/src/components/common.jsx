@@ -4,7 +4,6 @@ import { colors } from '../theme';
 const nf = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 });
 
-/** Часы: null → «—» (нет данных ≠ 0) */
 export const fmtH = (v, { sign = false } = {}) => {
   if (v == null || Number.isNaN(v)) return '—';
   const s = nf.format(Math.abs(v) < 0.05 ? 0 : v);
@@ -48,7 +47,6 @@ export function Kpi({ label, value, unit, hint, tone, highlight = false }) {
   );
 }
 
-/** Отклонение факта от плана: превышение — янтарный, без красного (не нарушение) */
 export function Deviation({ value, unit = 'ч' }) {
   if (value == null) return <span className="muted">—</span>;
   const over = value > 0.05;

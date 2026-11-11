@@ -8,7 +8,6 @@ import { FullScreenSkeleton, PageSkeleton } from './components/Skeletons';
 import Forbidden from './pages/Forbidden';
 import NotFound from './pages/NotFound';
 
-// Страницы грузятся отдельными чанками только при переходе на них.
 const Login = lazy(() => import('./pages/Login'));
 const Placeholder = lazy(() => import('./pages/Placeholder'));
 const pages = {
@@ -18,6 +17,9 @@ const pages = {
   plans: lazy(() => import('./pages/Plans')),
   analytics: lazy(() => import('./pages/TeacherAnalytics')),
   'work-types': lazy(() => import('./pages/WorkTypes')),
+  schools: lazy(() => import('./pages/Schools')),
+  reports: lazy(() => import('./pages/Reports')),
+  users: lazy(() => import('./pages/Users')),
 };
 
 const AnalyticsPage = pages.analytics;

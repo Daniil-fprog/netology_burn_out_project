@@ -11,7 +11,6 @@ import { TableSkeleton } from '../components/Skeletons';
 import { colors } from '../theme';
 
 const EDITORS = ['head', 'group_head', 'system_admin'];
-// подписи групп из seed.py; новые группы показываются кодом
 const GROUP_LABELS = {
   teaching: 'Учебная работа',
   teaching_support: 'Подготовка и проверка',
@@ -24,7 +23,6 @@ const GROUP_LABELS = {
 const fmtW = (v) => Number(v).toFixed(2).replace('.', ',');
 
 function WeightChip({ value, max }) {
-  // оттенок по доле от максимального веса, без «светофора»
   const i = max > 0 ? Math.min(4, Math.floor((Number(value) / max) * 4.999)) : 0;
   return (
     <span className="weight-chip" style={{ background: Number(value) ? colors.scale[i] : '#EEF1F0', color: i >= 3 ? '#fff' : colors.text }}>
@@ -44,7 +42,7 @@ function WorkTypeModal({ open, initial, onClose, onSave, saving }) {
       cancelText="Отмена"
       confirmLoading={saving}
       onCancel={onClose}
-      destroyOnClose
+      destroyOnHidden
       afterOpenChange={(o) => o && form.setFieldsValue(initial ?? { complexity_weight: 0, requires_comment: false })}
       onOk={async () => onSave(await form.validateFields())}
     >
@@ -88,7 +86,7 @@ export default function WorkTypes() {
   const canEdit = EDITORS.includes(role);
   const [status, setStatus] = useState('active');
   const [search, setSearch] = useState('');
-  const [editing, setEditing] = useState(null); // null — закрыто, {} — новая
+  const [editing, setEditing] = useState(null);
   const all = useWorkTypes({ includeArchived: true });
   const { save, archive, restore } = useWorkTypeMutations();
 

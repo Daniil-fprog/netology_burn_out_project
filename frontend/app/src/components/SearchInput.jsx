@@ -3,10 +3,6 @@ import { Input } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
-/**
- * Поле поиска: onSearch вызывается, когда человек перестал печатать (300 мс),
- * а не на каждую букву. Enter и очистка — сразу.
- */
 export default function SearchInput({ value = '', onSearch, delay = 300, ...rest }) {
   const [text, setText] = useState(value);
   const debounced = useDebouncedValue(text, delay);
@@ -14,7 +10,6 @@ export default function SearchInput({ value = '', onSearch, delay = 300, ...rest
   useEffect(() => { setText(value); }, [value]);
   useEffect(() => {
     if (debounced.trim() !== value.trim()) onSearch(debounced.trim());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced]);
 
   return (
