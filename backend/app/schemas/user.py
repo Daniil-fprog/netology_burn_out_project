@@ -21,7 +21,9 @@ class UserOut(BaseModel):
     name: str
     login: str
     phone: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    is_active: bool
+    # The legacy SQLAlchemy model does not mark these columns as NOT NULL.
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
     model_config = ConfigDict(from_attributes=True)

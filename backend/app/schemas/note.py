@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from typing import Optional, List
 
@@ -18,7 +18,9 @@ class NoteCreate(BaseModel):
         if v.strip() == "":
             raise ValueError("Текст записи не может состоять только из пробелов")
         if len(v.strip()) < 50:
-            raise ValueError(f"Текст записи должен содержать минимум 50 символов. Сейчас: {len(v.strip())} символов")
+            raise ValueError(
+                f"Текст записи должен содержать минимум 50 символов. Сейчас: {len(v.strip())} символов"
+            )
         return v
 
 
@@ -31,15 +33,15 @@ class NoteOut(BaseModel):
     user_id: int
     orig_text: str
     translate_text: Optional[str] = None
-    translate_status: str
+    translate_status: Optional[str]
 
     sentiment_label: Optional[str] = None
     sentiment_score: Optional[int] = None
     model_confidence: Optional[int] = None
 
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
-    recommendations: List[RecommendationOutWithNote] = []
+    recommendations: list[RecommendationOutWithNote] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)

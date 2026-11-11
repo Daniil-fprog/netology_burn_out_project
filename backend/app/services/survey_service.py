@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.teacher_domain import (
+from app.models.survey import (
     SurveyAnswerModel, SurveyConsentModel, SurveyNLPAnalysisModel, SurveyQuestionModel,
     SurveyResponseModel, SurveyResponseRevisionModel, SurveyTemplateModel,
 )

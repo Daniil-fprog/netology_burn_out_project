@@ -19,8 +19,8 @@ class RecommendationOut(BaseModel):
     score_from: int
     score_to: int
 
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None
+    updated_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
 
