@@ -173,7 +173,7 @@ pytest --cov=app --cov-report=term-missing
 - [Сервисный слой](documentation/services.md)
 - [Страницы и функции](documentation/front/TZ_teacher_burnout_pages_and_functions.md)
 - [Роли и права доступа](documentation/front/TZ_teacher_burnout_roles_and_permissions.md)
-- [Промежуточный отчёт](documentation/report/report_1.md)
+- [Промежуточный отчёт](documentation/report/УрФУ_ПИИ_промежуточный_отчёт_команда_5.md)
 - [Шаблоны импорта и экспорта](documentation/shedule/README_templates.md)
 
 ## Текущее состояние
