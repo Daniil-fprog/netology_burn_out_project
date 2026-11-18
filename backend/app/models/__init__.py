@@ -1,5 +1,9 @@
 from app.models.user import UserModel
 
+# MVP scope is documented in scope.py and README.md. Future models must stay
+# imported here so existing metadata and migrations remain stable, but new MVP
+# functionality must not depend on them.
+
 # Import every semantic module so all tables are registered in Base.metadata.
 from app.models.access import (
     UserSchoolAccessModel,

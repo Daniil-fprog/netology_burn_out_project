@@ -2,12 +2,15 @@
 
 import pytest
 
+import app.models  # noqa: F401 - register every model in Base.metadata
+from app.db.database import Base
 from app.models.access import UserSchoolAccessModel, UserSchoolGroupAssignmentModel
 from app.models.audit import AuditEventModel
 from app.models.export import ExportJobModel
 from app.models.import_batch import ImportBatchModel
 from app.models.organization import SchoolGroupModel, SchoolGroupSchoolModel, SchoolModel
 from app.models.role import RoleModel, UserRoleModel
+from app.models.scope import FUTURE_TABLES, MVP_ACTIVE_TABLES
 from app.models.survey import (
     SurveyAnswerModel,
     SurveyConsentModel,
@@ -87,3 +90,7 @@ SCHEMA_MODEL_PAIRS = [
 def test_read_schema_covers_model_columns(schema, model, private_fields):
     model_columns = set(model.__table__.columns.keys()) - private_fields
     assert model_columns <= set(schema.model_fields)
+
+
+def test_every_model_table_has_an_explicit_product_scope():
+    assert set(Base.metadata.tables) == MVP_ACTIVE_TABLES | FUTURE_TABLES
