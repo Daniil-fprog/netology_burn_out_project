@@ -127,7 +127,7 @@ docker compose up --build
 docker compose down
 ```
 
-Docker Compose подключает каталоги `data/db` и `data/cache` как локальные тома. Текущая конфигурация SQLite использует путь `db_store/mood_sync.db`; чтобы хранить базу в подключённом томе, необходимо задать для backend значение `DATABASE_URL=sqlite:////app/db/teacher_workload.db`.
+Docker Compose подключает каталоги `data/db` и `data/cache` как локальные тома. Текущая конфигурация SQLite использует путь `db_store/burn_out.db`; чтобы хранить базу в подключённом томе, необходимо задать для backend значение `DATABASE_URL=sqlite:////app/db/teacher_workload.db`.
 
 ## Локальный запуск backend
 
@@ -142,7 +142,7 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-По умолчанию используется SQLite-файл `db_store/mood_sync.db`. Для PostgreSQL перед запуском необходимо указать строку подключения:
+По умолчанию используется SQLite-файл `db_store/burn_out.db`. Для PostgreSQL перед запуском необходимо указать строку подключения:
 
 ```bash
 export DATABASE_URL='postgresql+psycopg://user:password@localhost:5432/teacher_workload'
