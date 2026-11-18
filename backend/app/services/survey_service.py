@@ -9,8 +9,10 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.survey import (
-    SurveyAnswerModel, SurveyConsentModel, SurveyNLPAnalysisModel, SurveyQuestionModel,
-    SurveyResponseModel, SurveyResponseRevisionModel, SurveyTemplateModel,
+    SurveyConsentModel,
+    SurveyQuestionModel,
+    SurveyResponseModel,
+    SurveyTemplateModel,
 )
 
 

@@ -1,4 +1,8 @@
-"""Analytics required by the plan-only workload dashboard."""
+"""MVP 2 FUTURE: plan-only workload dashboard analytics.
+
+The service is intentionally preserved but is not imported or exposed by the
+active MVP API. It depends on planned workload and workload norm tables.
+"""
 
 from collections import defaultdict
 from datetime import date

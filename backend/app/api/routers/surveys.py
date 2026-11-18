@@ -43,6 +43,9 @@ from app.services.workload_service import total
 
 
 router = APIRouter(tags=["Teacher surveys"])
+# MVP 2 FUTURE: response revisions, NLP and ML dataset endpoints are preserved
+# on this router but intentionally not included in app.api.v1.
+future_router = APIRouter(tags=["MVP 2: survey processing"])
 
 
 def pagination(items: list, page: int, size: int) -> dict:
@@ -141,7 +144,7 @@ def create_response(school_id: str, data: SurveyResponseRequest, db: Session = D
             incoming = data.answers
             saved = {a.question.code: a.value_jsonb for a in existing.answers}
             if incoming != saved: raise HTTPException(status_code=409, detail="client_request_id уже использован с другими данными")
-            return {**response_dict(existing, True), "answers_saved": len(existing.answers), "nlp_status": "pending"}
+            return {**response_dict(existing, True), "answers_saved": len(existing.answers)}
     conflict = db.query(SurveyResponseModel).filter_by(teacher_id=teacher_id, cadence=template.cadence, period_start=data.period_start, period_end=data.period_end).filter(SurveyResponseModel.status.in_(["draft", "submitted"])).first()
     if conflict: raise HTTPException(status_code=409, detail="Активный ответ на этот период уже существует")
     questions = db.query(SurveyQuestionModel).filter_by(template_id=template.id).order_by(SurveyQuestionModel.position).all()
@@ -152,9 +155,9 @@ def create_response(school_id: str, data: SurveyResponseRequest, db: Session = D
     db.add(item); db.flush()
     for question, value in values.items():
         answer = SurveyAnswerModel(response_id=item.id, question_id=question.id, value_jsonb=value); db.add(answer); db.flush()
-        if data.status == "submitted" and question.code == "today_workload_feeling": db.add(SurveyNLPAnalysisModel(response_id=item.id, answer_id=answer.id, status="pending"))
+        # MVP 2 FUTURE: enqueue SurveyNLPAnalysisModel for long-text answers.
     db.commit(); db.refresh(item)
-    return {**response_dict(item, True), "answers_saved": len(values), "nlp_status": "pending" if data.status == "submitted" else None}
+    return {**response_dict(item, True), "answers_saved": len(values)}
 
 
 @router.patch("/schools/{school_id}/survey-responses/{response_id}")
@@ -180,12 +183,11 @@ def submit_draft(school_id: str, response_id: str, db: Session = Depends(get_db)
     if not consent: raise HTTPException(status_code=403, detail="Нет действующего согласия survey_storage")
     questions = db.query(SurveyQuestionModel).filter_by(template_id=item.template_id).all(); answers = {a.question.code: a.value_jsonb for a in item.answers}; validate_answers(questions, answers, True)
     item.status = "submitted"; item.submitted_at = datetime.now(timezone.utc)
-    for answer in item.answers:
-        if answer.question.code == "today_workload_feeling": db.add(SurveyNLPAnalysisModel(response_id=item.id, answer_id=answer.id, status="pending"))
+    # MVP 2 FUTURE: enqueue SurveyNLPAnalysisModel after submission.
     db.commit(); db.refresh(item); return response_dict(item, True)
 
 
-@router.post("/schools/{school_id}/survey-responses/{response_id}/corrections")
+@future_router.post("/schools/{school_id}/survey-responses/{response_id}/corrections")
 def correct_response(school_id: str, response_id: str, data: SurveyCorrectionRequest, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, {"teacher"}); own_teacher = require_own_teacher(db, user.id, school_id); item = get_response(db, school_id, response_id)
     if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Ответ не найден")
@@ -206,8 +208,10 @@ def withdraw_response(school_id: str, response_id: str, db: Session = Depends(ge
     require_school_access(db, user.id, school_id, {"teacher"}); own_teacher = require_own_teacher(db, user.id, school_id); item = get_response(db, school_id, response_id)
     if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Ответ не найден")
     if item.status == "withdrawn": return response_dict(item, True)
-    previous = {a.question.code: a.value_jsonb for a in item.answers}; revision_no = db.query(SurveyResponseRevisionModel).filter_by(response_id=item.id).count() + 1
-    db.add(SurveyResponseRevisionModel(response_id=item.id, revision_no=revision_no, actor_id=user.id, previous_answers_jsonb=previous, change_type="withdraw")); item.status = "withdrawn"; db.query(SurveyNLPAnalysisModel).filter_by(response_id=item.id).update({"stale": True, "status": "cancelled"}); db.commit(); db.refresh(item)
+    item.status = "withdrawn"
+    # MVP 2 FUTURE: save SurveyResponseRevisionModel and cancel NLP jobs.
+    db.add(AuditEventModel(actor_id=user.id, action="withdraw", entity_type="survey_response", entity_id=item.id, school_id=school_id, changes={"status": "withdrawn"}))
+    db.commit(); db.refresh(item)
     return response_dict(item, True)
 
 
@@ -294,7 +298,7 @@ def export_surveys(school_id: str, format: str = Query("xlsx", pattern="^(xlsx|c
     return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="survey_responses.xlsx"'})
 
 
-@router.get("/schools/{school_id}/ml/teacher-wellbeing/dataset")
+@future_router.get("/schools/{school_id}/ml/teacher-wellbeing/dataset")
 def ml_dataset(school_id: str, date_from: date, date_to: date, feature_version: str = Query("v1", pattern="^v1$"), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, {"head", "group_head"})
     teachers = db.query(TeacherModel).filter_by(school_id=school_id).all(); result = []
@@ -345,13 +349,13 @@ def ml_dataset(school_id: str, date_from: date, date_to: date, feature_version: 
     return StreamingResponse(iter([output.getvalue().encode("utf-8-sig")]), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="teacher_wellbeing_ml_{feature_version}_{date.today():%Y%m%d}.csv"'})
 
 
-@router.get("/schools/{school_id}/survey-responses/{response_id}/nlp")
+@future_router.get("/schools/{school_id}/survey-responses/{response_id}/nlp")
 def nlp_results(school_id: str, response_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, SURVEY_ROLES); item = get_response(db, school_id, response_id); require_teacher_access(db, user.id, school_id, item.teacher_id)
     return [{"id": x.id, "status": x.status, "model_name": x.model_name, "model_version": x.model_version, "schema_version": x.schema_version, "result": x.result_jsonb, "stale": x.stale, "analyzed_at": x.analyzed_at} for x in db.query(SurveyNLPAnalysisModel).filter_by(response_id=response_id).order_by(SurveyNLPAnalysisModel.created_at.desc())]
 
 
-@router.post("/schools/{school_id}/survey-responses/{response_id}/nlp/reprocess", status_code=202)
+@future_router.post("/schools/{school_id}/survey-responses/{response_id}/nlp/reprocess", status_code=202)
 def reprocess_nlp(school_id: str, response_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, {"teacher"})
     own_teacher = require_own_teacher(db, user.id, school_id)

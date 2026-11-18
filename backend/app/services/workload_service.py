@@ -28,6 +28,10 @@ from app.models.workload import (
     WorkloadPlanVersionModel,
 )
 
+# MVP 2 FUTURE: imports, plans and workload norms below are intentionally
+# preserved for the next product stage. Active MVP endpoints call only
+# total() and daily_dict(), which use actual_work_entries/daily_work_logs.
+
 
 def decimal_or_none(value: Any) -> Decimal | None:
     if value is None or (isinstance(value, str) and not value.strip()):
@@ -50,7 +54,7 @@ def date_value(value: Any) -> date:
     raise ValueError("Ожидается дата YYYY-MM-DD или Excel date")
 
 
-def total(entries: list[PlannedWorkItemModel] | list[ActualWorkEntryModel]) -> Decimal:
+def total(entries: list[ActualWorkEntryModel]) -> Decimal:
     return sum((Decimal(entry.duration_hours) for entry in entries), Decimal("0"))
 
 
@@ -62,11 +66,56 @@ def _hours_by_work_type(entries: list) -> dict[str, Decimal]:
     return result
 
 
-def daily_dict(
+def daily_dict(teacher: TeacherModel, actual_log: DailyWorkLogModel) -> dict:
+    """Serialize one actual workload day using MVP tables only."""
+    actual_entries = list(actual_log.entries)
+    actual_total = total(actual_entries)
+    actual_hours = _hours_by_work_type(actual_entries)
+    at_school = sum(
+        (Decimal(entry.duration_hours) for entry in actual_entries if entry.location == "school"),
+        Decimal("0"),
+    )
+    at_home = sum(
+        (Decimal(entry.duration_hours) for entry in actual_entries if entry.location == "home"),
+        Decimal("0"),
+    )
+
+    def num(value):
+        return float(value) if value is not None else None
+
+    return {
+        "teacher_id": teacher.id,
+        "external_teacher_id": teacher.external_id,
+        "work_date": actual_log.work_date.isoformat(),
+        "day_type": actual_log.day_type,
+        "actual": {
+            "id": actual_log.id,
+            "status": actual_log.status,
+            "total_hours": num(actual_total),
+            "total_complete": actual_log.status == "completed",
+            **{
+                f"actual_{code}_hours": num(actual_hours.get(code, Decimal("0")))
+                for code in WORK_TYPE_CODES
+            },
+            "at_school_hours": num(at_school),
+            "at_home_hours": num(at_home),
+            "comment": actual_log.comment,
+        },
+        "metrics": {
+            "at_home_share": num(at_home / actual_total) if actual_total else None,
+            "week_start": (
+                actual_log.work_date - timedelta(days=actual_log.work_date.weekday())
+            ).isoformat(),
+        },
+    }
+
+
+def daily_dict_mvp2(
     teacher: TeacherModel,
     plan_items: list[PlannedWorkItemModel],
     actual_log: DailyWorkLogModel | None,
 ) -> dict:
+    """MVP 2 FUTURE: combined planned and actual workload representation."""
     actual_entries = [] if actual_log is None else list(actual_log.entries)
     ptotal = total(plan_items) if plan_items else None
     atotal = total(actual_entries) if actual_log is not None else None
@@ -111,6 +160,7 @@ def daily_dict(
     }
 
 
+# MVP 2 FUTURE: XLSX plan/norm import implementation is preserved below.
 def _sheet_rows(ws, mapping: dict[str, str], required: set[str], errors: list[dict]) -> list[dict]:
     header = {str(cell.value).strip(): cell.column for cell in ws[4] if cell.value is not None}
     missing = [h for h in required if h not in header]

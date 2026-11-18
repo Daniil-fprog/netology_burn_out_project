@@ -44,13 +44,16 @@ from app.schemas.analytics import PlannedDashboardOut
 from app.schemas.organization import SchoolCreate
 from app.schemas.teacher import TeacherCreate
 from app.schemas.work_type import WorkTypeCreate, WorkTypeOut, WorkTypeUpdate
-from app.schemas.workload import ActualPatch
+from app.schemas.workload import ActualPatch, DailyWorkLogCreate
 from app.services.analytics_service import get_planned_dashboard
 from app.services.work_type_service import archive_work_type, create_work_type, list_work_types, update_work_type
 from app.services.workload_service import daily_dict, import_workbook, parse_workbook, validation_report
 
 
 router = APIRouter(tags=["Teacher workload"])
+# MVP 2 FUTURE: preserved endpoints for plans, norms and XLSX import/export.
+# This router is intentionally not included in app.api.v1.
+future_router = APIRouter(tags=["MVP 2: planned workload"])
 WORK_TYPE_EDITOR_ROLES = {"head", "group_head", "system_admin"}
 
 
@@ -63,7 +66,7 @@ def batch_dict(item: ImportBatchModel) -> dict:
     return {"id": item.id, "school_id": item.school_id, "original_filename": item.original_filename, "sha256": item.sha256, "status": item.status, "mode": item.mode, "effective_from": item.effective_from, "rows_total": item.rows_total, "rows_created": item.rows_created, "rows_updated": item.rows_updated, "rows_skipped": item.rows_skipped, "validation_report": item.validation_report, "imported_at": item.imported_at}
 
 
-@router.get("/dashboard/planned", response_model=PlannedDashboardOut)
+@future_router.get("/dashboard/planned", response_model=PlannedDashboardOut)
 def planned_dashboard(
     school_id: str,
     date_from: date,
@@ -123,6 +126,22 @@ def create_school(data: SchoolCreate, db: Session = Depends(get_db), user: UserM
     return {"id": school.id, "name": school.name, "external_code": school.external_code}
 
 
+@router.get("/schools")
+def schools(db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    """List schools explicitly available to the current user."""
+    rows = (
+        db.query(SchoolModel)
+        .join(UserSchoolAccessModel, UserSchoolAccessModel.school_id == SchoolModel.id)
+        .filter(UserSchoolAccessModel.user_id == user.id)
+        .order_by(SchoolModel.name)
+        .all()
+    )
+    return [
+        {"id": item.id, "name": item.name, "external_code": item.external_code}
+        for item in rows
+    ]
+
+
 @router.post("/schools/{school_id}/teachers", status_code=201)
 def create_teacher(school_id: str, data: TeacherCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, {"system_admin"})
@@ -154,7 +173,7 @@ async def read_xlsx(file: UploadFile) -> bytes:
     return data
 
 
-@router.post("/schools/{school_id}/workload/imports/validate")
+@future_router.post("/schools/{school_id}/workload/imports/validate")
 async def validate_import(school_id: str, file: UploadFile = File(...), effective_from: date = Form(...), mode: str = Form("insert_only"), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     if mode not in {"insert_only", "upsert"}: raise HTTPException(status_code=422, detail="replace_period ещё не поддерживается")
@@ -162,7 +181,7 @@ async def validate_import(school_id: str, file: UploadFile = File(...), effectiv
     return validation_report(db, school_id, parse_workbook(content), mode, effective_from)
 
 
-@router.post("/schools/{school_id}/workload/imports", status_code=201)
+@future_router.post("/schools/{school_id}/workload/imports", status_code=201)
 async def create_import(school_id: str, file: UploadFile = File(...), effective_from: date = Form(...), mode: str = Form("insert_only"), idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     if mode not in {"insert_only", "upsert"}: raise HTTPException(status_code=422, detail="replace_period ещё не поддерживается")
@@ -181,14 +200,14 @@ async def create_import(school_id: str, file: UploadFile = File(...), effective_
     return batch_dict(item)
 
 
-@router.get("/schools/{school_id}/workload/imports")
+@future_router.get("/schools/{school_id}/workload/imports")
 def list_imports(school_id: str, page_no: int = Query(1, alias="page", ge=1), page_size: int = Query(50, ge=1, le=200), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     rows = db.query(ImportBatchModel).filter_by(school_id=school_id).order_by(ImportBatchModel.created_at.desc()).all()
     return page([batch_dict(x) for x in rows], page_no, page_size)
 
 
-@router.get("/schools/{school_id}/workload/imports/{import_id}")
+@future_router.get("/schools/{school_id}/workload/imports/{import_id}")
 def get_import(school_id: str, import_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     item = db.query(ImportBatchModel).filter_by(id=import_id, school_id=school_id).first()
@@ -196,7 +215,7 @@ def get_import(school_id: str, import_id: str, db: Session = Depends(get_db), us
     return batch_dict(item)
 
 
-@router.get("/schools/{school_id}/workload/imports/{import_id}/file")
+@future_router.get("/schools/{school_id}/workload/imports/{import_id}/file")
 def download_import(school_id: str, import_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     item = db.query(ImportBatchModel).filter_by(id=import_id, school_id=school_id).first()
@@ -215,18 +234,18 @@ def teachers(school_id: str, subject: str | None = None, page_no: int = Query(1,
     if subject: query = query.filter(TeacherModel.subject == subject)
     result = []
     for teacher in query.order_by(TeacherModel.external_id).all():
-        norm = db.query(TeacherWorkloadNormModel).filter_by(teacher_id=teacher.id).filter(TeacherWorkloadNormModel.effective_to.is_(None)).first()
-        result.append({"id": teacher.id, "external_id": teacher.external_id, "subject": teacher.subject, "is_active": teacher.is_active, "current_norm": None if not norm else {"effective_from": norm.effective_from, "contract_teaching_hours_per_week": float(norm.contract_teaching_hours_per_week), "standard_teaching_hours_per_rate": float(norm.standard_teaching_hours_per_rate), "rate_fraction": float(norm.contract_teaching_hours_per_week / norm.standard_teaching_hours_per_rate)}})
+        result.append({"id": teacher.id, "user_id": teacher.user_id, "external_id": teacher.external_id, "full_name": teacher.full_name, "subject": teacher.subject, "is_active": teacher.is_active})
     return page(result, page_no, page_size)
 
 
-@router.get("/schools/{school_id}/teachers/{teacher_id}/norms")
+@future_router.get("/schools/{school_id}/teachers/{teacher_id}/norms")
 def norms(school_id: str, teacher_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES | {"teacher"}); require_teacher_access(db, user.id, school_id, teacher_id); get_teacher_in_school(db, school_id, teacher_id)
     return [{"id": n.id, "effective_from": n.effective_from, "effective_to": n.effective_to, "contract_teaching_hours_per_week": float(n.contract_teaching_hours_per_week), "standard_teaching_hours_per_rate": float(n.standard_teaching_hours_per_rate), "rate_fraction": float(n.contract_teaching_hours_per_week / n.standard_teaching_hours_per_rate), "comment": n.comment, "plan_source": n.plan_source} for n in db.query(TeacherWorkloadNormModel).filter_by(teacher_id=teacher_id).order_by(TeacherWorkloadNormModel.effective_from.desc())]
 
 
-def daily_rows(db: Session, school_id: str, teacher_id: str | None, date_from: date | None, date_to: date | None, comments: bool) -> list[dict]:
+def daily_rows_mvp2(db: Session, school_id: str, teacher_id: str | None, date_from: date | None, date_to: date | None, comments: bool) -> list[dict]:
+    """MVP 2 FUTURE: combined plan/fact representation."""
     tq = db.query(TeacherModel).filter_by(school_id=school_id)
     if teacher_id: tq = tq.filter_by(id=teacher_id)
     teachers_by_id = {x.id: x for x in tq.all()}
@@ -258,10 +277,71 @@ def daily_rows(db: Session, school_id: str, teacher_id: str | None, date_from: d
         keyed[(log.teacher_id, log.work_date)]["actual"] = log
     rows = []
     for (tid, _), values in keyed.items():
-        row = daily_dict(teachers_by_id[tid], values["plan_items"], values["actual"])
+        from app.services.workload_service import daily_dict_mvp2
+        row = daily_dict_mvp2(teachers_by_id[tid], values["plan_items"], values["actual"])
         if row["actual"] and not comments: row["actual"].pop("comment", None)
         rows.append(row)
     return rows
+
+
+def daily_rows(db: Session, school_id: str, teacher_id: str | None, date_from: date | None, date_to: date | None, comments: bool) -> list[dict]:
+    """Return actual workload rows using MVP tables only."""
+    teachers_query = db.query(TeacherModel).filter_by(school_id=school_id)
+    if teacher_id:
+        teachers_query = teachers_query.filter_by(id=teacher_id)
+    teachers_by_id = {item.id: item for item in teachers_query.all()}
+    logs = db.query(DailyWorkLogModel).filter(
+        DailyWorkLogModel.teacher_id.in_(teachers_by_id or [""])
+    )
+    if date_from:
+        logs = logs.filter(DailyWorkLogModel.work_date >= date_from)
+    if date_to:
+        logs = logs.filter(DailyWorkLogModel.work_date <= date_to)
+    rows = [daily_dict(teachers_by_id[log.teacher_id], log) for log in logs.all()]
+    if not comments:
+        for row in rows:
+            row["actual"].pop("comment", None)
+    return rows
+
+
+@router.post("/schools/{school_id}/workload/daily", status_code=201)
+def create_daily_log(school_id: str, data: DailyWorkLogCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    """Create one daily actual-work log for the authenticated teacher."""
+    require_school_access(db, user.id, school_id, {"teacher"})
+    teacher = require_own_teacher(db, user.id, school_id)
+    if data.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Можно создавать нагрузку только для себя")
+    if db.query(DailyWorkLogModel).filter_by(teacher_id=teacher.id, work_date=data.work_date).first():
+        raise HTTPException(status_code=409, detail="Запись за эту дату уже существует")
+    work_type_ids = {entry.work_type_id for entry in data.entries}
+    valid_ids = {
+        item.id for item in db.query(WorkTypeModel).filter(
+            WorkTypeModel.id.in_(work_type_ids or [""]),
+            WorkTypeModel.is_active.is_(True),
+        )
+    }
+    if work_type_ids != valid_ids:
+        raise HTTPException(status_code=422, detail="Неизвестный или архивный тип работы")
+    log = DailyWorkLogModel(
+        teacher_id=teacher.id,
+        work_date=data.work_date,
+        day_type=data.day_type,
+        status=data.status,
+        comment=data.comment,
+        completed_at=datetime.now(timezone.utc) if data.status == "completed" else None,
+        completed_by=user.id if data.status == "completed" else None,
+    )
+    db.add(log); db.flush()
+    for entry in data.entries:
+        db.add(ActualWorkEntryModel(
+            daily_log_id=log.id,
+            created_by=user.id,
+            updated_by=user.id,
+            **entry.model_dump(),
+        ))
+    db.add(AuditEventModel(actor_id=user.id, action="create", entity_type="daily_work_logs", entity_id=log.id, school_id=school_id, changes={"work_date": str(log.work_date), "entries": len(data.entries)}))
+    db.commit(); db.refresh(log)
+    return daily_dict(teacher, log)
 
 
 @router.get("/schools/{school_id}/workload/daily")
@@ -285,11 +365,10 @@ def weekly(school_id: str, teacher_id: str | None = None, week_from: date | None
     for row in rows: grouped[(row["teacher_id"], row["metrics"]["week_start"])].append(row)
     result = []
     for (tid, week), group in grouped.items():
-        plans = [r["plan"]["total_hours"] for r in group if r["plan"] and r["plan"]["total_hours"] is not None]
         actuals = [r["actual"]["total_hours"] for r in group if r["actual"] and r["actual"]["total_hours"] is not None]
-        p, a = (sum(plans) if plans else None), (sum(actuals) if actuals else None)
+        a = sum(actuals) if actuals else None
         weekend = sum(r["actual"]["total_hours"] or 0 for r in group if r["actual"] and date.fromisoformat(r["work_date"]).weekday() >= 5)
-        result.append({"teacher_id": tid, "week_start": week, "planned_hours": p, "actual_hours": a, "deviation_hours": a - p if a is not None and p is not None else None, "actual_to_plan_ratio": a / p if a is not None and p else None, "weekend_hours": weekend, "observed_days": len(actuals), "expected_days": None, "completion_rate": None, "completion_status": "not_assessed", "has_missing_plan": len(plans) < len(group), "has_missing_actual": len(actuals) < len(group)})
+        result.append({"teacher_id": tid, "week_start": week, "actual_hours": a, "weekend_hours": weekend, "observed_days": len(actuals), "completed_days": sum(1 for row in group if row["actual"]["status"] == "completed")})
     result.sort(key=lambda x: x["week_start"], reverse=True)
     return page(result, page_no, page_size)
 
@@ -361,7 +440,7 @@ def make_workbook(db: Session, school_id: str, teacher_id: str | None, date_from
             if norm:
                 values = {"external_id": teacher.external_id, "subject": teacher.subject, "contract_teaching_hours_per_week": norm.contract_teaching_hours_per_week, "standard_teaching_hours_per_rate": norm.standard_teaching_hours_per_rate, "comment": norm.comment, "plan_source": norm.plan_source}
                 wb["Учителя_нормы"].append([values.get(field) for field in NORM_HEADERS.values()])
-        rows = daily_rows(db, school_id, teacher_id, date_from, date_to, True)
+        rows = daily_rows_mvp2(db, school_id, teacher_id, date_from, date_to, True)
         workload_sources = [("План_дня", PLAN_HEADERS, "plan")]
         if include_actual:
             workload_sources.append(("Ежедневный_учет", ACTUAL_HEADERS, "actual"))
@@ -387,7 +466,7 @@ def make_workbook(db: Session, school_id: str, teacher_id: str | None, date_from
     output = io.BytesIO(); wb.save(output); output.seek(0); return output
 
 
-@router.get("/schools/{school_id}/workload/exports")
+@future_router.get("/schools/{school_id}/workload/exports")
 def export_workload(school_id: str, date_from: date | None = None, date_to: date | None = None, teacher_id: str | None = None, report: str = "full", db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES | {"teacher"})
     teacher_id = get_teacher_id_filter(db, user.id, school_id) or teacher_id
@@ -398,7 +477,7 @@ def export_workload(school_id: str, date_from: date | None = None, date_to: date
     return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f'attachment; filename="teacher_workload_{date.today():%Y%m%d}.xlsx"'})
 
 
-@router.get("/schools/{school_id}/workload/template")
+@future_router.get("/schools/{school_id}/workload/template")
 def workload_template(school_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     return StreamingResponse(make_workbook(db, school_id, None, None, None, False), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="teacher_workload_template_1.0.xlsx"'})
