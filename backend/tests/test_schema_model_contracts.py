@@ -6,10 +6,7 @@ from app.models.access import UserSchoolAccessModel, UserSchoolGroupAssignmentMo
 from app.models.audit import AuditEventModel
 from app.models.export import ExportJobModel
 from app.models.import_batch import ImportBatchModel
-from app.models.note import NoteModel
-from app.models.note_recommendation import NoteRecommendationModel
 from app.models.organization import SchoolGroupModel, SchoolGroupSchoolModel, SchoolModel
-from app.models.recommendation import RecommendationModel
 from app.models.role import RoleModel, UserRoleModel
 from app.models.survey import (
     SurveyAnswerModel,
@@ -34,10 +31,7 @@ from app.schemas.access import UserSchoolAssignmentOut, UserSchoolGroupAssignmen
 from app.schemas.audit import AuditEventOut
 from app.schemas.export import ExportJobOut
 from app.schemas.import_batch import ImportBatchOut
-from app.schemas.note import NoteOut
-from app.schemas.note_recommendation import NoteRecommendationOut
 from app.schemas.organization import SchoolGroupOut, SchoolGroupSchoolOut, SchoolOut
-from app.schemas.recommendation import RecommendationOut
 from app.schemas.role import RoleOut, UserRoleOut
 from app.schemas.survey import (
     SurveyAnswerOut,
@@ -66,12 +60,9 @@ SCHEMA_MODEL_PAIRS = [
     (AuditEventOut, AuditEventModel, set()),
     (ExportJobOut, ExportJobModel, {"stored_file_key"}),
     (ImportBatchOut, ImportBatchModel, {"stored_file_key"}),
-    (NoteOut, NoteModel, set()),
-    (NoteRecommendationOut, NoteRecommendationModel, set()),
     (SchoolOut, SchoolModel, set()),
     (SchoolGroupOut, SchoolGroupModel, set()),
     (SchoolGroupSchoolOut, SchoolGroupSchoolModel, set()),
-    (RecommendationOut, RecommendationModel, set()),
     (RoleOut, RoleModel, set()),
     (UserRoleOut, UserRoleModel, set()),
     (SurveyTemplateOut, SurveyTemplateModel, set()),

@@ -1,8 +1,5 @@
-from app.schemas.note import NoteCreate, NoteOut, NoteUpdate
 from app.schemas.user import UserCreate, UserLogin, UserOut
 from app.schemas.token import TokenOut
-from app.schemas.recommendation import RecommendationCreate, RecommendationOut
-from app.schemas.note_recommendation import NoteRecommendationOut
 from app.schemas.analytics import PlannedDashboardOut
 
 # Teacher workload domain schemas are exported by semantic module. Keeping

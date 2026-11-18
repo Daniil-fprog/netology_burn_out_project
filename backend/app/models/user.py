@@ -20,5 +20,4 @@ class UserModel(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    notes = relationship("NoteModel", back_populates="user")
     roles = relationship("UserRoleModel", back_populates="user", cascade="all, delete-orphan")
