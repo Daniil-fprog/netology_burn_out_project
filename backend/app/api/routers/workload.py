@@ -20,6 +20,7 @@ from app.core.access import (
     require_school_access,
     require_teacher_access,
     require_own_teacher,
+    require_roles,
     find_user_teacher_in_school,
     get_teacher_id_filter,
     user_role_codes,
@@ -118,10 +119,17 @@ def remove_work_type(work_type_id: str, db: Session = Depends(get_db), user: Use
 
 @router.post("/schools", status_code=201)
 def create_school(data: SchoolCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
+    require_roles(db, user.id, {"system_admin"})
     school = SchoolModel(name=data.name.strip(), external_code=data.external_code)
     db.add(school); db.flush()
-    db.add(UserSchoolAccessModel(user_id=user.id, school_id=school.id))
-    assign_role(db, user.id, "director")
+    db.add(AuditEventModel(
+        actor_id=user.id,
+        action="create",
+        entity_type="school",
+        entity_id=school.id,
+        school_id=school.id,
+        changes={"name": school.name, "external_code": school.external_code},
+    ))
     db.commit(); db.refresh(school)
     return {"id": school.id, "name": school.name, "external_code": school.external_code}
 
@@ -129,13 +137,13 @@ def create_school(data: SchoolCreate, db: Session = Depends(get_db), user: UserM
 @router.get("/schools")
 def schools(db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     """List schools explicitly available to the current user."""
-    rows = (
-        db.query(SchoolModel)
-        .join(UserSchoolAccessModel, UserSchoolAccessModel.school_id == SchoolModel.id)
-        .filter(UserSchoolAccessModel.user_id == user.id)
-        .order_by(SchoolModel.name)
-        .all()
-    )
+    query = db.query(SchoolModel)
+    if "system_admin" not in user_role_codes(db, user.id):
+        query = query.join(
+            UserSchoolAccessModel,
+            UserSchoolAccessModel.school_id == SchoolModel.id,
+        ).filter(UserSchoolAccessModel.user_id == user.id)
+    rows = query.order_by(SchoolModel.name).all()
     return [
         {"id": item.id, "name": item.name, "external_code": item.external_code}
         for item in rows
@@ -147,7 +155,21 @@ def create_teacher(school_id: str, data: TeacherCreate, db: Session = Depends(ge
     require_school_access(db, user.id, school_id, {"system_admin"})
     if db.query(TeacherModel).filter_by(school_id=school_id, external_id=data.external_id).first(): raise HTTPException(status_code=409, detail="Такой external_id уже есть")
     if data.user_id is not None and not db.query(UserModel).filter_by(id=data.user_id).first(): raise HTTPException(status_code=404, detail="Пользователь не найден")
-    item = TeacherModel(school_id=school_id, **data.model_dump()); db.add(item); db.commit(); db.refresh(item)
+    item = TeacherModel(school_id=school_id, **data.model_dump()); db.add(item); db.flush()
+    db.add(AuditEventModel(
+        actor_id=user.id,
+        action="create",
+        entity_type="teacher",
+        entity_id=item.id,
+        school_id=school_id,
+        changes={
+            "user_id": item.user_id,
+            "external_id": item.external_id,
+            "full_name": item.full_name,
+            "subject": item.subject,
+        },
+    ))
+    db.commit(); db.refresh(item)
     return {"id": item.id, "external_id": item.external_id, "subject": item.subject, "is_active": item.is_active}
 
 
@@ -160,7 +182,16 @@ def create_access(school_id: str, data: AccessCreate, db: Session = Depends(get_
     if db.query(UserSchoolAccessModel).filter_by(user_id=data.user_id, school_id=school_id).first(): raise HTTPException(status_code=409, detail="Доступ уже настроен")
     values = data.model_dump(exclude={"role"})
     item = UserSchoolAccessModel(school_id=school_id, **values)
-    db.add(item); assign_role(db, data.user_id, data.role); db.commit(); db.refresh(item)
+    db.add(item); assign_role(db, data.user_id, data.role); db.flush()
+    db.add(AuditEventModel(
+        actor_id=user.id,
+        action="grant",
+        entity_type="user_school_access",
+        entity_id=item.id,
+        school_id=school_id,
+        changes={"user_id": data.user_id, "role": data.role.value},
+    ))
+    db.commit(); db.refresh(item)
     return {"id": item.id, "user_id": item.user_id, "school_id": item.school_id, "role": data.role}
 
 

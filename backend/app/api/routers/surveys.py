@@ -126,7 +126,17 @@ def withdraw_consent(school_id: str, consent_id: str, db: Session = Depends(get_
     item = db.query(SurveyConsentModel).filter_by(id=consent_id, school_id=school_id).first()
     if not item: raise HTTPException(status_code=404, detail="Согласие не найдено")
     if item.teacher_id != own_teacher.id: raise HTTPException(status_code=404, detail="Согласие не найдено")
-    item.withdrawn_at = datetime.now(timezone.utc); db.commit()
+    item.withdrawn_at = datetime.now(timezone.utc)
+    db.add(AuditEventModel(
+        actor_id=user.id,
+        action="withdraw",
+        entity_type="survey_consent",
+        entity_id=item.id,
+        school_id=school_id,
+        purpose=item.purpose,
+        changes={"withdrawn_at": item.withdrawn_at.isoformat()},
+    ))
+    db.commit()
     return {"id": item.id, "withdrawn_at": item.withdrawn_at}
 
 

@@ -70,6 +70,7 @@ def test_user(db_session, test_user_data):
     """Создает тестового пользователя в БД через сервис."""
     user_create = UserCreate(
         name=test_user_data["name"],
+        login=test_user_data["login"],
         password=test_user_data["password"],
         phone=test_user_data["phone"],
     )
@@ -94,6 +95,7 @@ def other_user(db_session):
     """Создает второго пользователя для проверки доступа."""
     user_create = UserCreate(
         name="Другой Пользователь",
+        login="otheruser",
         password="otherpass123",
     )
     user = register_user_service(user_create, db_session)

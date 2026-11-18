@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.core.security import hash_password
 from app.db.database import get_db, Base
 from app.main import app
+from app.models.role import RoleModel, UserRoleModel
 from app.models.user import UserModel
 
 
@@ -80,6 +81,20 @@ def auth_headers(client, test_user_data):
     response = client.post("/api/v1/users/login", json=login_data)
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def admin_headers(client, test_user_data, auth_headers):
+    """Назначает текущему пользователю глобальную роль system_admin."""
+    db = TestingSessionLocal()
+    user = db.query(UserModel).filter_by(login=test_user_data["login"]).one()
+    role = RoleModel(code="system_admin", name="Системный администратор")
+    db.add(role)
+    db.flush()
+    db.add(UserRoleModel(user_id=user.id, role_id=role.id))
+    db.commit()
+    db.close()
+    return auth_headers
 
 
 class TestRegister:
@@ -194,9 +209,9 @@ class TestGetMe:
 class TestGetUsers:
     """Тесты эндпоинта GET /api/v1/users/."""
 
-    def test_get_users_success(self, client, auth_headers):
-        """Успешное получение списка пользователей."""
-        response = client.get("/api/v1/users/", headers=auth_headers)
+    def test_get_users_success(self, client, admin_headers):
+        """Системный администратор получает список пользователей."""
+        response = client.get("/api/v1/users/", headers=admin_headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -208,11 +223,16 @@ class TestGetUsers:
         
         assert response.status_code == 401
 
+    def test_get_users_forbidden_for_regular_user(self, client, auth_headers):
+        response = client.get("/api/v1/users/", headers=auth_headers)
+
+        assert response.status_code == 403
+
 
 class TestGetUserById:
     """Тесты эндпоинта GET /api/v1/users/{userId}."""
 
-    def test_get_user_by_id_success(self, client, auth_headers):
+    def test_get_user_by_id_success(self, client, admin_headers):
         """Успешное получение пользователя по ID."""
         user = UserModel(
             name="Другой Пользователь",
@@ -225,16 +245,16 @@ class TestGetUserById:
         db.refresh(user)
         db.close()
 
-        response = client.get(f"/api/v1/users/{user.id}", headers=auth_headers)
+        response = client.get(f"/api/v1/users/{user.id}", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
         assert len(data) > 0
 
-    def test_get_user_by_id_not_found(self, client, auth_headers):
+    def test_get_user_by_id_not_found(self, client, admin_headers):
         """Получение несуществующего пользователя по ID."""
-        response = client.get("/api/v1/users/999999", headers=auth_headers)
+        response = client.get("/api/v1/users/999999", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -246,3 +266,8 @@ class TestGetUserById:
         response = client.get("/api/v1/users/1")
 
         assert response.status_code == 401
+
+    def test_get_user_by_id_forbidden_for_regular_user(self, client, auth_headers):
+        response = client.get("/api/v1/users/999999", headers=auth_headers)
+
+        assert response.status_code == 403

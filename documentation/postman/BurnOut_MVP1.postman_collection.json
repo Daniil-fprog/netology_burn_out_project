@@ -1,0 +1,686 @@
+{
+  "info": {
+    "_postman_id": "56c26448-e850-4a44-894f-e7b6c99546db",
+    "name": "BurnOut API — MVP 1",
+    "description": "Коллекция активных endpoint-ов MVP 1. Рекомендуемый порядок: 01 → 07. Перед запуском API выполните alembic upgrade head. По умолчанию используется системный администратор daniil/admin123, создаваемый seed-скриптом приложения. Запрос импорта шаблонов опросов требует ручного выбора JSON-файла.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{admin_access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Успешный HTTP-статус', function () {",
+          "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000", "type": "string" },
+    { "key": "admin_login", "value": "daniil", "type": "string" },
+    { "key": "admin_password", "value": "admin123", "type": "string" },
+    { "key": "admin_access_token", "value": "", "type": "string" },
+    { "key": "teacher_login", "value": "", "type": "string" },
+    { "key": "teacher_password", "value": "postman123", "type": "string" },
+    { "key": "teacher_access_token", "value": "", "type": "string" },
+    { "key": "teacher_user_id", "value": "", "type": "string" },
+    { "key": "school_id", "value": "", "type": "string" },
+    { "key": "teacher_id", "value": "", "type": "string" },
+    { "key": "work_type_id", "value": "", "type": "string" },
+    { "key": "created_work_type_id", "value": "", "type": "string" },
+    { "key": "daily_log_id", "value": "", "type": "string" },
+    { "key": "consent_id", "value": "", "type": "string" },
+    { "key": "survey_response_id", "value": "", "type": "string" },
+    { "key": "survey_code", "value": "daily_checkin", "type": "string" },
+    { "key": "survey_version", "value": "1.0.0", "type": "string" },
+    { "key": "test_date", "value": "2026-11-18", "type": "string" },
+    { "key": "date_from", "value": "2026-11-01", "type": "string" },
+    { "key": "date_to", "value": "2026-11-30", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "01 — Система и подготовка",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] },
+            "description": "Проверяет доступность приложения. Маршрут не имеет префикса /api/v1."
+          }
+        },
+        {
+          "name": "API v1 home",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/home", "host": ["{{base_url}}"], "path": ["api", "v1", "home"] }
+          }
+        },
+        {
+          "name": "Вход system_admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{admin_login}}\",\n  \"password\": \"{{admin_password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/users/login", "host": ["{{base_url}}"], "path": ["api", "v1", "users", "login"] },
+            "description": "Сохраняет JWT в admin_access_token."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "    pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Регистрация тестового преподавателя",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('teacher_login', 'postman_teacher_' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('teacher_user_id', String(pm.response.json().id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Преподаватель\",\n  \"login\": \"{{teacher_login}}\",\n  \"password\": \"{{teacher_password}}\",\n  \"phone\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/users/register", "host": ["{{base_url}}"], "path": ["api", "v1", "users", "register"] }
+          }
+        },
+        {
+          "name": "Вход тестового преподавателя",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{teacher_login}}\",\n  \"password\": \"{{teacher_password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/users/login", "host": ["{{base_url}}"], "path": ["api", "v1", "users", "login"] },
+            "description": "Выполняйте после создания профиля преподавателя и выдачи доступа либо повторите позже. Сохраняет JWT в teacher_access_token."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "    pm.collectionVariables.set('teacher_access_token', pm.response.json().access_token);",
+                "}"
+              ]
+            }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "02 — Пользователи — system_admin",
+      "item": [
+        {
+          "name": "Текущий пользователь",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/users/me", "host": ["{{base_url}}"], "path": ["api", "v1", "users", "me"] }
+          }
+        },
+        {
+          "name": "Список пользователей",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/users/", "host": ["{{base_url}}"], "path": ["api", "v1", "users", ""] },
+            "description": "Доступно только system_admin."
+          }
+        },
+        {
+          "name": "Пользователь по ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/users/{{teacher_user_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "users", "{{teacher_user_id}}"] },
+            "description": "Доступно только system_admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 — Школы и доступ — system_admin",
+      "item": [
+        {
+          "name": "Создать школу",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman школа {{$timestamp}}\",\n  \"external_code\": \"postman-school-{{$timestamp}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools", "host": ["{{base_url}}"], "path": ["api", "v1", "schools"] },
+            "description": "Только system_admin. Создание фиксируется в audit_events."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    pm.collectionVariables.set('school_id', pm.response.json().id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Список школ",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/schools", "host": ["{{base_url}}"], "path": ["api", "v1", "schools"] },
+            "description": "system_admin видит все школы; другие роли — только назначенные."
+          }
+        },
+        {
+          "name": "Создать профиль преподавателя",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{teacher_user_id}},\n  \"external_id\": \"postman-teacher-{{$timestamp}}\",\n  \"full_name\": \"Postman Преподаватель\",\n  \"subject\": \"Математика\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/teachers", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "teachers"] },
+            "description": "Только system_admin. Создание фиксируется в audit_events."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    pm.collectionVariables.set('teacher_id', pm.response.json().id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Выдать доступ к школе и роль teacher",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{teacher_user_id}},\n  \"role\": \"teacher\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/access", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "access"] },
+            "description": "Только system_admin. Назначение фиксируется в audit_events."
+          }
+        },
+        {
+          "name": "Список преподавателей",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/teachers?page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "schools", "{{school_id}}", "teachers"],
+              "query": [
+                { "key": "subject", "value": "Математика", "disabled": true },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 — Виды работ — system_admin",
+      "item": [
+        {
+          "name": "Список активных видов работ",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/work-types?include_archived=false",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "work-types"],
+              "query": [{ "key": "include_archived", "value": "false" }]
+            },
+            "description": "Сохраняет ID первого активного вида работы для примеров нагрузки."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.response.code === 200 && pm.response.json().length) {",
+                "    pm.collectionVariables.set('work_type_id', pm.response.json()[0].id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Создать вид работы",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"postman_{{$timestamp}}\",\n  \"name\": \"Postman тест\",\n  \"category_group\": \"other\",\n  \"complexity_weight\": 0.1,\n  \"requires_comment\": false,\n  \"description\": \"Создано из Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/work-types", "host": ["{{base_url}}"], "path": ["api", "v1", "work-types"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    pm.collectionVariables.set('created_work_type_id', pm.response.json().id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Изменить вид работы",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman тест — изменён\",\n  \"complexity_weight\": 0.2\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/work-types/{{created_work_type_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "work-types", "{{created_work_type_id}}"] }
+          }
+        },
+        {
+          "name": "Архивировать вид работы",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/v1/work-types/{{created_work_type_id}}/archive", "host": ["{{base_url}}"], "path": ["api", "v1", "work-types", "{{created_work_type_id}}", "archive"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — Фактическая нагрузка — teacher",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{teacher_access_token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Текущий профиль teacher",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/users/me", "host": ["{{base_url}}"], "path": ["api", "v1", "users", "me"] }
+          }
+        },
+        {
+          "name": "Создать дневную нагрузку",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacher_id\": \"{{teacher_id}}\",\n  \"work_date\": \"{{test_date}}\",\n  \"day_type\": \"Учебный день\",\n  \"status\": \"draft\",\n  \"comment\": \"Запись из Postman\",\n  \"entries\": [\n    {\n      \"duration_hours\": 2.5,\n      \"unit\": \"clock_hour\",\n      \"work_type_id\": \"{{work_type_id}}\",\n      \"location\": \"school\",\n      \"comment\": \"Тестовая работа\"\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/workload/daily", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "workload", "daily"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    pm.collectionVariables.set('daily_log_id', pm.response.json().actual.id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Изменить дневную нагрузку",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"comment\": \"День завершён через Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/workload/daily/{{daily_log_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "workload", "daily", "{{daily_log_id}}"] }
+          }
+        },
+        {
+          "name": "Дневные записи",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/workload/daily?teacher_id={{teacher_id}}&date_from={{date_from}}&date_to={{date_to}}&sort=date_desc&page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "schools", "{{school_id}}", "workload", "daily"],
+              "query": [
+                { "key": "teacher_id", "value": "{{teacher_id}}" },
+                { "key": "date_from", "value": "{{date_from}}" },
+                { "key": "date_to", "value": "{{date_to}}" },
+                { "key": "sort", "value": "date_desc" },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Недельная агрегация",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/workload/weekly?teacher_id={{teacher_id}}&week_from={{date_from}}&week_to={{date_to}}&page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "schools", "{{school_id}}", "workload", "weekly"],
+              "query": [
+                { "key": "teacher_id", "value": "{{teacher_id}}" },
+                { "key": "week_from", "value": "{{date_from}}" },
+                { "key": "week_to", "value": "{{date_to}}" },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 — Опросы — teacher",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{teacher_access_token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Каталог опросов",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/surveys", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "surveys"] }
+          }
+        },
+        {
+          "name": "Текущая версия опроса",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/surveys/{{survey_code}}", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "surveys", "{{survey_code}}"] }
+          }
+        },
+        {
+          "name": "Конкретная версия опроса",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/surveys/{{survey_code}}/versions/{{survey_version}}", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "surveys", "{{survey_code}}", "versions", "{{survey_version}}"] }
+          }
+        },
+        {
+          "name": "Выдать согласие survey_storage",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policy_version\": \"1.0\",\n  \"purpose\": \"survey_storage\",\n  \"method\": \"web\",\n  \"proof_reference\": \"postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/teachers/{{teacher_id}}/survey-consents", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "teachers", "{{teacher_id}}", "survey-consents"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    pm.collectionVariables.set('consent_id', pm.response.json().id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Создать черновик ответа",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"survey_code\": \"{{survey_code}}\",\n  \"survey_version\": \"{{survey_version}}\",\n  \"assessment_date\": \"{{test_date}}\",\n  \"period_start\": \"{{test_date}}\",\n  \"period_end\": \"{{test_date}}\",\n  \"comment_reference_date\": \"{{test_date}}\",\n  \"source\": \"web_form\",\n  \"status\": \"draft\",\n  \"client_request_id\": \"postman-{{$guid}}\",\n  \"consent_record_id\": \"{{consent_id}}\",\n  \"answers\": {\n    \"fatigue_score\": 3,\n    \"stress_score\": 2\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    pm.collectionVariables.set('survey_response_id', pm.response.json().id);",
+                "}"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "Заполнить черновик",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "If-Match", "value": "1" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": {\n    \"fatigue_score\": 3,\n    \"stress_score\": 2,\n    \"workload_perception\": 3,\n    \"emotional_exhaustion_today\": 2,\n    \"recovery_capacity\": 4,\n    \"control_over_tasks\": 4,\n    \"main_overload_source\": \"documentation\",\n    \"today_workload_feeling\": \"Нагрузка была умеренной, к вечеру появилась усталость.\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}"] }
+          }
+        },
+        {
+          "name": "Получить ответ",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}"] }
+          }
+        },
+        {
+          "name": "Отправить черновик",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}/submit", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}", "submit"] }
+          }
+        },
+        {
+          "name": "Список ответов",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses?teacher_id={{teacher_id}}&survey_code={{survey_code}}&date_from={{date_from}}&date_to={{date_to}}&page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses"],
+              "query": [
+                { "key": "teacher_id", "value": "{{teacher_id}}" },
+                { "key": "survey_code", "value": "{{survey_code}}" },
+                { "key": "status", "value": "submitted", "disabled": true },
+                { "key": "date_from", "value": "{{date_from}}" },
+                { "key": "date_to", "value": "{{date_to}}" },
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "История опросов преподавателя",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/teachers/{{teacher_id}}/survey-history?page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "schools", "{{school_id}}", "teachers", "{{teacher_id}}", "survey-history"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 — Аналитика и администрирование — system_admin",
+      "item": [
+        {
+          "name": "Охват опросами",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-analytics/completion?date_from={{date_from}}&date_to={{date_to}}&teacher_id={{teacher_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "schools", "{{school_id}}", "survey-analytics", "completion"],
+              "query": [
+                { "key": "date_from", "value": "{{date_from}}" },
+                { "key": "date_to", "value": "{{date_to}}" },
+                { "key": "teacher_id", "value": "{{teacher_id}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Нагрузка и самочувствие",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/teachers/{{teacher_id}}/workload-and-wellbeing?date_from={{date_from}}&date_to={{date_to}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "schools", "{{school_id}}", "teachers", "{{teacher_id}}", "workload-and-wellbeing"],
+              "query": [
+                { "key": "date_from", "value": "{{date_from}}" },
+                { "key": "date_to", "value": "{{date_to}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Экспорт опросов — JSON",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/surveys/exports?format=json&report=responses&date_from={{date_from}}&date_to={{date_to}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "schools", "{{school_id}}", "surveys", "exports"],
+              "query": [
+                { "key": "format", "value": "json" },
+                { "key": "report", "value": "responses" },
+                { "key": "date_from", "value": "{{date_from}}" },
+                { "key": "date_to", "value": "{{date_to}}" }
+              ]
+            },
+            "description": "Допустимые format: json, csv, xlsx. Экспорт фиксируется в audit_events."
+          }
+        },
+        {
+          "name": "Импорт шаблонов опросов — ручной выбор файла",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "", "description": "Выберите app/backend/app/data/teacher_wellbeing_surveys.json" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/surveys/templates/import?dry_run=true",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "schools", "{{school_id}}", "surveys", "templates", "import"],
+              "query": [{ "key": "dry_run", "value": "true" }]
+            },
+            "description": "Выберите JSON-файл локально в Postman. dry_run=true только проверяет файл; false применяет импорт."
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 — Отзыв данных — teacher — выполнять последним",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{teacher_access_token}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Отозвать ответ",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}/withdraw", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}", "withdraw"] },
+            "description": "Меняет статус на withdrawn и создаёт событие аудита. После этого ответ исключается из аналитики submitted-ответов."
+          }
+        },
+        {
+          "name": "Отозвать согласие",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-consents/{{consent_id}}/withdraw", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-consents", "{{consent_id}}", "withdraw"] },
+            "description": "Создаёт событие аудита. После отзыва нельзя отправлять новые ответы с этим consent_id."
+          }
+        }
+      ]
+    }
+  ]
+}

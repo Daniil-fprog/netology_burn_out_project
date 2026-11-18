@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
+from app.core.access import require_roles
+from app.core.enum import RoleCode
 from app.db.database import get_db
 from app.models.user import UserModel
 from app.schemas.user import UserCreate, UserOut
@@ -31,6 +33,7 @@ def get_users(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
+    require_roles(db, current_user.id, {RoleCode.SYSTEM_ADMIN})
     return db.query(UserModel).all()
 
 @router.get("/{userId}", response_model=list[UserOut])
@@ -39,4 +42,5 @@ def get_user_by_id(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
+    require_roles(db, current_user.id, {RoleCode.SYSTEM_ADMIN})
     return db.query(UserModel).filter(UserModel.id == userId).all()

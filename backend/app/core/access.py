@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.enum import RoleCode
 from app.models.access import UserSchoolAccessModel
+from app.models.organization import SchoolModel
 from app.models.role import RoleModel, UserRoleModel
 from app.models.teacher import TeacherModel
 
@@ -51,6 +52,20 @@ def user_role_codes(db: Session, user_id: int) -> set[str]:
     return {code for (code,) in rows}
 
 
+def require_roles(
+    db: Session,
+    user_id: int,
+    roles: Set[RoleCode | str],
+) -> set[str]:
+    """Require one of the roles, with unrestricted access for system admins."""
+    assigned_roles = user_role_codes(db, user_id)
+    if RoleCode.SYSTEM_ADMIN in assigned_roles:
+        return assigned_roles
+    if assigned_roles.isdisjoint(roles):
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    return assigned_roles
+
+
 def assign_role(db: Session, user_id: int, role_code: RoleCode | str) -> None:
     """Add a role to the current transaction, without committing it."""
     code = role_code.value if isinstance(role_code, RoleCode) else role_code
@@ -69,7 +84,8 @@ def find_user_teacher_in_school(db: Session, user_id: int, school_id: str) -> Te
 
 def require_own_teacher(db: Session, user_id: int, school_id: str) -> TeacherModel:
     """Resolve a teacher profile for self-service operations only."""
-    if RoleCode.TEACHER not in user_role_codes(db, user_id):
+    roles = user_role_codes(db, user_id)
+    if RoleCode.TEACHER not in roles and RoleCode.SYSTEM_ADMIN not in roles:
         raise HTTPException(status_code=403, detail="Действие доступно только преподавателю")
     teacher = find_user_teacher_in_school(db, user_id, school_id)
     if teacher is None:
@@ -95,9 +111,14 @@ def require_school_access(
     user_id: int,
     school_id: str,
     roles: Set[RoleCode | str] | None = None,
-) -> UserSchoolAccessModel:
+) -> UserSchoolAccessModel | None:
+    assigned_roles = user_role_codes(db, user_id)
+    if RoleCode.SYSTEM_ADMIN in assigned_roles:
+        if db.query(SchoolModel.id).filter_by(id=school_id).first() is None:
+            raise HTTPException(status_code=404, detail="Школа не найдена")
+        return db.query(UserSchoolAccessModel).filter_by(user_id=user_id, school_id=school_id).first()
     access = db.query(UserSchoolAccessModel).filter_by(user_id=user_id, school_id=school_id).first()
-    if access is None or (roles is not None and user_role_codes(db, user_id).isdisjoint(roles)):
+    if access is None or (roles is not None and assigned_roles.isdisjoint(roles)):
         raise HTTPException(status_code=403, detail="Нет доступа к этой школе")
     return access
 
