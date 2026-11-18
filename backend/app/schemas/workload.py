@@ -103,7 +103,6 @@ class PlannedWorkItemOut(ORMModel):
 
 
 class ActualWorkEntryCreate(ClockHourDurationInput):
-    planned_work_item_id: str | None = None
     work_type_id: str
     location: WorkLocation
     comment: str | None = Field(default=None, max_length=3000)
@@ -118,7 +117,6 @@ class ActualWorkEntryCreate(ClockHourDurationInput):
 class ActualWorkEntryOut(ORMModel):
     id: str
     daily_log_id: str
-    planned_work_item_id: str | None
     work_type_id: str
     duration_hours: Decimal
     location: WorkLocation

@@ -3,6 +3,7 @@
 import pytest
 
 import app.models  # noqa: F401 - register every model in Base.metadata
+import app.schemas
 from app.db.database import Base
 from app.models.access import UserSchoolAccessModel, UserSchoolGroupAssignmentModel
 from app.models.audit import AuditEventModel
@@ -60,7 +61,7 @@ from app.schemas.workload import (
 SCHEMA_MODEL_PAIRS = [
     (UserSchoolAssignmentOut, UserSchoolAccessModel, set()),
     (UserSchoolGroupAssignmentOut, UserSchoolGroupAssignmentModel, set()),
-    (AuditEventOut, AuditEventModel, set()),
+    (AuditEventOut, AuditEventModel, {"import_batch_id"}),
     (ExportJobOut, ExportJobModel, {"stored_file_key"}),
     (ImportBatchOut, ImportBatchModel, {"stored_file_key"}),
     (SchoolOut, SchoolModel, set()),
@@ -82,7 +83,7 @@ SCHEMA_MODEL_PAIRS = [
     (WorkloadPlanVersionOut, WorkloadPlanVersionModel, set()),
     (PlannedWorkItemOut, PlannedWorkItemModel, set()),
     (DailyWorkLogOut, DailyWorkLogModel, set()),
-    (ActualWorkEntryOut, ActualWorkEntryModel, set()),
+    (ActualWorkEntryOut, ActualWorkEntryModel, {"planned_work_item_id"}),
 ]
 
 
@@ -94,3 +95,24 @@ def test_read_schema_covers_model_columns(schema, model, private_fields):
 
 def test_every_model_table_has_an_explicit_product_scope():
     assert set(Base.metadata.tables) == MVP_ACTIVE_TABLES | FUTURE_TABLES
+
+
+def test_public_model_package_exports_only_mvp_tables():
+    exported_tables = {
+        getattr(app.models, name).__tablename__ for name in app.models.__all__
+    }
+    assert exported_tables == MVP_ACTIVE_TABLES
+
+
+def test_public_schema_package_excludes_future_features():
+    future_schema_names = {
+        "ExportJobCreate",
+        "ImportBatchCreate",
+        "PlannedWorkItemCreate",
+        "SchoolGroupCreate",
+        "SurveyNLPAnalysisOut",
+        "SurveyResponseRevisionOut",
+        "WorkloadNormCreate",
+        "WorkloadPlanVersionCreate",
+    }
+    assert future_schema_names.isdisjoint(app.schemas.__all__)

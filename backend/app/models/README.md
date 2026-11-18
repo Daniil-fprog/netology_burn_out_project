@@ -20,11 +20,13 @@ The source files contain both the first MVP domain and models reserved for later
 | Planned workload | `teacher_workload_norms`, `workload_plan_versions`, `planned_work_items` |
 | Advanced survey processing | `survey_response_revisions`, `survey_nlp_analyses` |
 
-Do not use reserved tables in new MVP routes, services, schemas, seeds, or queries until their area is explicitly activated. Do not delete the models or remove their imports from `app.models`.
+Do not use reserved tables in new MVP routes, services, schemas, seeds, or queries until their area is explicitly activated. Do not delete the models or remove their migration-only imports from `app.models.future_registry`.
+
+New MVP services import their models from `app.models` and schemas from `app.schemas`. These public modules export only active MVP classes. Alembic imports `app.models.future_registry` separately so reserved tables remain registered for migrations.
 
 The active tables currently retain two nullable links for forward compatibility:
 
 - `actual_work_entries.planned_work_item_id` points to future table `planned_work_items`;
 - `audit_events.import_batch_id` points to future table `import_batches`.
 
-MVP code must leave both fields `NULL`.
+MVP schemas do not expose either field, and MVP code must leave both fields `NULL`.

@@ -1,25 +1,15 @@
+"""Public Pydantic schema surface for MVP service development."""
+
 from app.schemas.user import UserCreate, UserLogin, UserOut
 from app.schemas.token import TokenOut
-from app.schemas.analytics import PlannedDashboardOut
-
-# Teacher workload domain schemas are exported by semantic module. Keeping
-# these imports here makes schema discovery straightforward for API modules.
 from app.schemas.access import (
     AccessCreate,
     UserSchoolAssignmentCreate,
     UserSchoolAssignmentOut,
-    UserSchoolGroupAssignmentCreate,
-    UserSchoolGroupAssignmentOut,
 )
 from app.schemas.audit import AuditEventOut
-from app.schemas.export import ExportJobCreate, ExportJobOut
-from app.schemas.import_batch import ImportBatchCreate, ImportBatchOut
 from app.schemas.organization import (
     SchoolCreate,
-    SchoolGroupCreate,
-    SchoolGroupOut,
-    SchoolGroupSchoolCreate,
-    SchoolGroupSchoolOut,
     SchoolOut,
     SchoolUpdate,
 )
@@ -31,15 +21,12 @@ from app.schemas.survey import (
     SurveyConsentRequest,
     SurveyConsentCreate,
     SurveyConsentOut,
-    SurveyCorrectionRequest,
     SurveyDraftPatch,
-    SurveyNLPAnalysisOut,
     SurveyQuestionDefinition,
     SurveyQuestionOut,
     SurveyResponseCreate,
     SurveyResponseRequest,
     SurveyResponseOut,
-    SurveyResponseRevisionOut,
     SurveyTemplateCreate,
     SurveyTemplateOut,
 )
@@ -49,10 +36,45 @@ from app.schemas.workload import (
     ActualWorkEntryOut,
     DailyWorkLogCreate,
     DailyWorkLogOut,
-    PlannedWorkItemCreate,
-    PlannedWorkItemOut,
-    WorkloadNormCreate,
-    WorkloadNormOut,
-    WorkloadPlanVersionCreate,
-    WorkloadPlanVersionOut,
 )
+
+__all__ = [
+    "UserCreate",
+    "UserLogin",
+    "UserOut",
+    "TokenOut",
+    "AccessCreate",
+    "UserSchoolAssignmentCreate",
+    "UserSchoolAssignmentOut",
+    "AuditEventOut",
+    "SchoolCreate",
+    "SchoolOut",
+    "SchoolUpdate",
+    "RoleCreate",
+    "RoleOut",
+    "UserRoleCreate",
+    "UserRoleOut",
+    "TeacherCreate",
+    "TeacherOut",
+    "TeacherUpdate",
+    "WorkTypeCreate",
+    "WorkTypeOut",
+    "WorkTypeUpdate",
+    "SurveyAnswerOut",
+    "SurveyConsentRequest",
+    "SurveyConsentCreate",
+    "SurveyConsentOut",
+    "SurveyDraftPatch",
+    "SurveyQuestionDefinition",
+    "SurveyQuestionOut",
+    "SurveyResponseCreate",
+    "SurveyResponseRequest",
+    "SurveyResponseOut",
+    "SurveyTemplateCreate",
+    "SurveyTemplateOut",
+    "ActualPatch",
+    "ActualWorkEntryCreate",
+    "ActualWorkEntryOut",
+    "DailyWorkLogCreate",
+    "DailyWorkLogOut",
+]

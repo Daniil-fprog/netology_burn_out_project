@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.db.database import Base, DATABASE_URL
 import app.models
+import app.models.future_registry  # noqa: F401 - preserve future tables in migrations
 
 
 config = context.config

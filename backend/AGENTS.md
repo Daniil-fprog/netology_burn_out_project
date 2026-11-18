@@ -20,6 +20,8 @@ Until the user explicitly expands the product scope, new backend development mus
 
 The models listed as future scope in `app/models/scope.py` are intentionally retained for later product expansion. Do not delete them, but do not use them in new MVP endpoints, services, schemas, seeds, queries, or required workflows unless the user explicitly asks to activate that functionality.
 
+New MVP services must import SQLAlchemy models from `app.models` and Pydantic schemas from `app.schemas`. Do not import future classes directly from semantic modules. The public package exports intentionally contain only the MVP surface.
+
 Keep all model modules imported by `app.models` so SQLAlchemy metadata and the existing database schema remain stable.
 
 For MVP code, leave these compatibility references unset (`NULL`):

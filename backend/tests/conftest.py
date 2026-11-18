@@ -84,7 +84,7 @@ def auth_headers(test_user, test_user_data, client):
         "login": test_user.login,
         "password": test_user_data["password"],
     }
-    response = client.post("/users/login", json=login_data)
+    response = client.post("/api/v1/users/login", json=login_data)
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 

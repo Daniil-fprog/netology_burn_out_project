@@ -77,13 +77,13 @@ def auth_headers(client, test_user_data):
         "login": test_user_data["login"],
         "password": test_user_data["password"],
     }
-    response = client.post("/users/login", json=login_data)
+    response = client.post("/api/v1/users/login", json=login_data)
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 
 class TestRegister:
-    """Тесты эндпоинта POST /users/register."""
+    """Тесты эндпоинта POST /api/v1/users/register."""
 
     def test_register_success(self, client):
         """Успешная регистрация пользователя."""
@@ -93,7 +93,7 @@ class TestRegister:
             "password": "newpassword123",
             "phone": "+79997778899",
         }
-        response = client.post("/users/register", json=register_data)
+        response = client.post("/api/v1/users/register", json=register_data)
         
         assert response.status_code == 200
         data = response.json()
@@ -108,13 +108,13 @@ class TestRegister:
         register_data = {
             "name": "Только Имя",
         }
-        response = client.post("/users/register", json=register_data)
+        response = client.post("/api/v1/users/register", json=register_data)
         
         assert response.status_code == 422
 
     def test_register_empty_body(self, client):
         """Регистрация с пустым телом."""
-        response = client.post("/users/register", json={})
+        response = client.post("/api/v1/users/register", json={})
         
         assert response.status_code == 422
 
@@ -137,7 +137,7 @@ class TestRegister:
             "login": test_user_data["login"],
             "password": "anotherpassword",
         }
-        response = client.post("/users/register", json=register_data)
+        response = client.post("/api/v1/users/register", json=register_data)
         
         assert response.status_code == 400
 
@@ -160,17 +160,17 @@ class TestRegister:
             "login": "uniqueuser",
             "password": "newpass123",
         }
-        response = client.post("/users/register", json=register_data)
+        response = client.post("/api/v1/users/register", json=register_data)
         
         assert response.status_code in [400, 422]
 
 
 class TestGetMe:
-    """Тесты эндпоинта GET /users/me."""
+    """Тесты эндпоинта GET /api/v1/users/me."""
 
     def test_get_me_success(self, client, auth_headers):
         """Успешное получение данных о себе."""
-        response = client.get("/users/me", headers=auth_headers)
+        response = client.get("/api/v1/users/me", headers=auth_headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -179,24 +179,24 @@ class TestGetMe:
 
     def test_get_me_unauthorized(self, client):
         """Получение данных о себе без авторизации."""
-        response = client.get("/users/me")
+        response = client.get("/api/v1/users/me")
         
         assert response.status_code == 401
 
     def test_get_me_invalid_token(self, client):
         """Получение данных с неверным токеном."""
         headers = {"Authorization": "Bearer invalidtoken"}
-        response = client.get("/users/me", headers=headers)
+        response = client.get("/api/v1/users/me", headers=headers)
         
         assert response.status_code == 401
 
 
 class TestGetUsers:
-    """Тесты эндпоинта GET /users/."""
+    """Тесты эндпоинта GET /api/v1/users/."""
 
     def test_get_users_success(self, client, auth_headers):
         """Успешное получение списка пользователей."""
-        response = client.get("/users/", headers=auth_headers)
+        response = client.get("/api/v1/users/", headers=auth_headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -204,13 +204,13 @@ class TestGetUsers:
 
     def test_get_users_unauthorized(self, client):
         """Получение списка пользователей без авторизации."""
-        response = client.get("/users/")
+        response = client.get("/api/v1/users/")
         
         assert response.status_code == 401
 
 
 class TestGetUserById:
-    """Тесты эндпоинта GET /users/{userId}."""
+    """Тесты эндпоинта GET /api/v1/users/{userId}."""
 
     def test_get_user_by_id_success(self, client, auth_headers):
         """Успешное получение пользователя по ID."""
@@ -225,7 +225,7 @@ class TestGetUserById:
         db.refresh(user)
         db.close()
 
-        response = client.get(f"/users/{user.id}", headers=auth_headers)
+        response = client.get(f"/api/v1/users/{user.id}", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -234,7 +234,7 @@ class TestGetUserById:
 
     def test_get_user_by_id_not_found(self, client, auth_headers):
         """Получение несуществующего пользователя по ID."""
-        response = client.get("/users/999999", headers=auth_headers)
+        response = client.get("/api/v1/users/999999", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -243,6 +243,6 @@ class TestGetUserById:
 
     def test_get_user_by_id_unauthorized(self, client):
         """Получение пользователя без авторизации."""
-        response = client.get("/users/1")
+        response = client.get("/api/v1/users/1")
 
         assert response.status_code == 401

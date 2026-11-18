@@ -11,7 +11,7 @@ from app.db.database import get_db
 from app.models.user import UserModel
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/users/login")
 pwd_context = CryptContext(schemes=["bcrypt_sha256"], deprecated="auto")
 
 

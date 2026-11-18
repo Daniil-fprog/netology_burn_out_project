@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1 import router as api_v1_router
 from app.core.config import CORS_ALLOWED_ORIGINS
 from app.db.database import SessionLocal
-from app.api.routers import auth, surveys, users, workload
 from app.db.seed import seed_admin_user, seed_roles, seed_work_types
 from app.services.survey_service import seed_surveys
 
@@ -31,18 +31,10 @@ app.add_middleware(
 )
 
 
-@app.get("/home")
-def home():
-    return {"message": "FastAPI работает"}
-
-
 @app.get("/health", tags=["System"])
 def health():
     return {"status": "ok"}
 
 
-# Роуты
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(workload.router)
-app.include_router(surveys.router)
+# Versioned application API. Infrastructure health checks stay unversioned.
+app.include_router(api_v1_router)

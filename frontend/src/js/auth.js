@@ -5,7 +5,7 @@ class Auth {
             window.location.hostname === "localhost" ||
             window.location.hostname === "127.0.0.1";
 
-        return isLocalhost ? "http://127.0.0.1:8000" : "/api";
+        return isLocalhost ? "http://127.0.0.1:8000/api/v1" : "/api/v1";
     })();
 
     /**

@@ -13,7 +13,6 @@ class AuditEventOut(ORMModel):
     entity_type: str
     entity_id: str | None
     school_id: str | None
-    import_batch_id: str | None
     purpose: str | None
     changed_at: datetime
     changes: dict[str, Any]

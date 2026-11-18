@@ -28,7 +28,7 @@
 
 - **Принимает:** данные регистрации и сессию БД.
 - **Возвращает:** созданную модель пользователя.
-- **Используется:** `POST /users/register` в [users.py](../backend/app/api/routers/users.py).
+- **Используется:** `POST /api/v1/users/register` в [users.py](../backend/app/api/routers/users.py).
 
 ### `authenticate_user_service`
 
@@ -36,7 +36,7 @@
 
 - **Принимает:** логин, пароль и сессию БД.
 - **Возвращает:** модель пользователя после успешной проверки.
-- **Используется:** `POST /users/login` в [auth.py](../backend/app/api/routers/auth.py).
+- **Используется:** `POST /api/v1/users/login` в [auth.py](../backend/app/api/routers/auth.py).
 
 ## 3. Сервис типов работ
 

@@ -50,7 +50,7 @@ from app.services.work_type_service import archive_work_type, create_work_type, 
 from app.services.workload_service import daily_dict, import_workbook, parse_workbook, validation_report
 
 
-router = APIRouter(prefix="/api/v1", tags=["Teacher workload"])
+router = APIRouter(tags=["Teacher workload"])
 WORK_TYPE_EDITOR_ROLES = {"head", "group_head", "system_admin"}
 
 

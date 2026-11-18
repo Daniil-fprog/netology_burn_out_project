@@ -42,7 +42,7 @@ from app.services.survey_service import active_consent, response_dict, seed_surv
 from app.services.workload_service import total
 
 
-router = APIRouter(prefix="/api/v1", tags=["Teacher surveys"])
+router = APIRouter(tags=["Teacher surveys"])
 
 
 def pagination(items: list, page: int, size: int) -> dict:

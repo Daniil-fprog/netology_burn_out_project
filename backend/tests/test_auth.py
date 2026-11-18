@@ -46,7 +46,7 @@ def client():
 
 
 class TestLogin:
-    """Тесты эндпоинта POST /users/login."""
+    """Тесты эндпоинта POST /api/v1/users/login."""
 
     def test_login_success(self, client):
         """Успешный вход пользователя."""
@@ -67,7 +67,7 @@ class TestLogin:
             "login": "testuser",
             "password": "testpass123",
         }
-        response = client.post("/users/login", json=login_data)
+        response = client.post("/api/v1/users/login", json=login_data)
         
         assert response.status_code == 200
         data = response.json()
@@ -80,14 +80,14 @@ class TestLogin:
             "login": "nonexistent",
             "password": "wrongpassword",
         }
-        response = client.post("/users/login", json=login_data)
+        response = client.post("/api/v1/users/login", json=login_data)
         
         assert response.status_code == 401
         assert response.json()["detail"] == "Неверный логин или пароль"
 
     def test_login_empty_body(self, client):
         """Вход с пустым телом запроса."""
-        response = client.post("/users/login", json={})
+        response = client.post("/api/v1/users/login", json={})
         
         assert response.status_code == 422
 
@@ -96,7 +96,7 @@ class TestLogin:
         login_data = {
             "password": "somepassword",
         }
-        response = client.post("/users/login", json=login_data)
+        response = client.post("/api/v1/users/login", json=login_data)
         
         assert response.status_code == 422
 
@@ -105,7 +105,7 @@ class TestLogin:
         login_data = {
             "login": "someuser",
         }
-        response = client.post("/users/login", json=login_data)
+        response = client.post("/api/v1/users/login", json=login_data)
         
         assert response.status_code == 422
 
@@ -127,7 +127,7 @@ class TestLogin:
             "login": "emptyuser",
             "password": "",
         }
-        response = client.post("/users/login", json=login_data)
+        response = client.post("/api/v1/users/login", json=login_data)
 
         # Pydantic возвращает 422 при валидации пустого пароля
         assert response.status_code == 422
@@ -138,6 +138,6 @@ class TestLogin:
             "login": "testuser",
             "password": "   ",
         }
-        response = client.post("/users/login", json=login_data)
+        response = client.post("/api/v1/users/login", json=login_data)
         
         assert response.status_code == 401
