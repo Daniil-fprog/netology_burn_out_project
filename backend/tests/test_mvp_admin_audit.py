@@ -61,7 +61,7 @@ def test_system_admin_has_global_school_access_and_actions_are_audited(
     assert teacher_response.status_code == 201
 
     access_response = client.post(
-        f"/api/v1/schools/{school_id}/access",
+        f"/api/v1/schools/{school_id}/members",
         headers=auth_headers,
         json={"user_id": other_user.id, "role": "teacher"},
     )

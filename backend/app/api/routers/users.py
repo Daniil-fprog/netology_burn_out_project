@@ -36,6 +36,7 @@ def get_users(
     require_roles(db, current_user.id, {RoleCode.SYSTEM_ADMIN})
     return db.query(UserModel).all()
 
+
 @router.get("/{userId}", response_model=list[UserOut])
 def get_user_by_id(
     userId: int,

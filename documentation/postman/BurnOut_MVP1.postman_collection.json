@@ -247,7 +247,7 @@
           }]
         },
         {
-          "name": "Выдать доступ к школе и роль teacher",
+          "name": "Добавить пользователя в школу с ролью teacher",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -256,8 +256,8 @@
               "raw": "{\n  \"user_id\": {{teacher_user_id}},\n  \"role\": \"teacher\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/access", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "access"] },
-            "description": "Только system_admin. Назначение фиксируется в audit_events."
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/members", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "members"] },
+            "description": "Только system_admin. Создаёт членство пользователя в школе и назначает роль; действие фиксируется в audit_events."
           }
         },
         {

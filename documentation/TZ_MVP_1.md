@@ -226,7 +226,7 @@ MVP 1 использует 15 предметных таблиц:
 | GET | `/api/v1/schools` | Доступные школы; для `system_admin` — все школы |
 | POST | `/api/v1/schools/{school_id}/teachers` | Создание профиля педагога; только `system_admin`, с записью аудита |
 | GET | `/api/v1/schools/{school_id}/teachers` | Список педагогов |
-| POST | `/api/v1/schools/{school_id}/access` | Выдача доступа и роли; только `system_admin`, с записью аудита |
+| POST | `/api/v1/schools/{school_id}/members` | Добавление пользователя в школу и назначение роли; только `system_admin`, с записью аудита |
 
 ### 7.3. Виды работ
 

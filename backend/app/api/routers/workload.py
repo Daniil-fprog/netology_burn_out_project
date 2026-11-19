@@ -15,21 +15,16 @@ from app.core.workload_import_contract import ACADEMIC_HOUR_FIELDS, ACTUAL_HEADE
 from app.core.access import (
     FACT_ROLES,
     PLAN_MANAGER_ROLES,
-    assign_role,
     get_teacher_in_school,
     require_school_access,
     require_teacher_access,
     require_own_teacher,
-    require_roles,
-    find_user_teacher_in_school,
     get_teacher_id_filter,
     user_role_codes,
 )
 from app.db.database import get_db
-from app.models.access import UserSchoolAccessModel
 from app.models.audit import AuditEventModel
 from app.models.import_batch import ImportBatchModel
-from app.models.organization import SchoolModel
 from app.models.teacher import TeacherModel
 from app.models.user import UserModel
 from app.models.work_type import WorkTypeModel
@@ -40,14 +35,9 @@ from app.models.workload import (
     TeacherWorkloadNormModel,
     WorkloadPlanVersionModel,
 )
-from app.schemas.access import AccessCreate
 from app.schemas.analytics import PlannedDashboardOut
-from app.schemas.organization import SchoolCreate
-from app.schemas.teacher import TeacherCreate
-from app.schemas.work_type import WorkTypeCreate, WorkTypeOut, WorkTypeUpdate
 from app.schemas.workload import ActualPatch, DailyWorkLogCreate
 from app.services.analytics_service import get_planned_dashboard
-from app.services.work_type_service import archive_work_type, create_work_type, list_work_types, update_work_type
 from app.services.workload_service import daily_dict, import_workbook, parse_workbook, validation_report
 
 
@@ -55,9 +45,6 @@ router = APIRouter(tags=["Teacher workload"])
 # MVP 2 FUTURE: preserved endpoints for plans, norms and XLSX import/export.
 # This router is intentionally not included in app.api.v1.
 future_router = APIRouter(tags=["MVP 2: planned workload"])
-WORK_TYPE_EDITOR_ROLES = {"head", "group_head", "system_admin"}
-
-
 def page(items: list, page_no: int, page_size: int) -> dict:
     start = (page_no - 1) * page_size
     return {"page": page_no, "page_size": page_size, "total": len(items), "items": items[start:start + page_size]}
@@ -80,119 +67,6 @@ def planned_dashboard(
         return get_planned_dashboard(db, {school_id}, date_from, date_to)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@router.get("/work-types", response_model=list[WorkTypeOut])
-def work_types(
-    include_archived: bool = False,
-    db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user),
-):
-    roles = user_role_codes(db, user.id)
-    if roles.isdisjoint({"teacher", "director", "head", "group_head", "system_admin"}):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
-    if include_archived and roles.isdisjoint(WORK_TYPE_EDITOR_ROLES):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
-    return list_work_types(db, include_archived=include_archived)
-
-
-@router.post("/work-types", response_model=WorkTypeOut, status_code=201)
-def add_work_type(data: WorkTypeCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
-    return create_work_type(db, data, user.id)
-
-
-@router.patch("/work-types/{work_type_id}", response_model=WorkTypeOut)
-def edit_work_type(work_type_id: str, data: WorkTypeUpdate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
-    return update_work_type(db, work_type_id, data, user.id)
-
-
-@router.post("/work-types/{work_type_id}/archive", response_model=WorkTypeOut)
-def remove_work_type(work_type_id: str, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
-    return archive_work_type(db, work_type_id, user.id)
-
-
-@router.post("/schools", status_code=201)
-def create_school(data: SchoolCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    require_roles(db, user.id, {"system_admin"})
-    school = SchoolModel(name=data.name.strip(), external_code=data.external_code)
-    db.add(school); db.flush()
-    db.add(AuditEventModel(
-        actor_id=user.id,
-        action="create",
-        entity_type="school",
-        entity_id=school.id,
-        school_id=school.id,
-        changes={"name": school.name, "external_code": school.external_code},
-    ))
-    db.commit(); db.refresh(school)
-    return {"id": school.id, "name": school.name, "external_code": school.external_code}
-
-
-@router.get("/schools")
-def schools(db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    """List schools explicitly available to the current user."""
-    query = db.query(SchoolModel)
-    if "system_admin" not in user_role_codes(db, user.id):
-        query = query.join(
-            UserSchoolAccessModel,
-            UserSchoolAccessModel.school_id == SchoolModel.id,
-        ).filter(UserSchoolAccessModel.user_id == user.id)
-    rows = query.order_by(SchoolModel.name).all()
-    return [
-        {"id": item.id, "name": item.name, "external_code": item.external_code}
-        for item in rows
-    ]
-
-
-@router.post("/schools/{school_id}/teachers", status_code=201)
-def create_teacher(school_id: str, data: TeacherCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    require_school_access(db, user.id, school_id, {"system_admin"})
-    if db.query(TeacherModel).filter_by(school_id=school_id, external_id=data.external_id).first(): raise HTTPException(status_code=409, detail="Такой external_id уже есть")
-    if data.user_id is not None and not db.query(UserModel).filter_by(id=data.user_id).first(): raise HTTPException(status_code=404, detail="Пользователь не найден")
-    item = TeacherModel(school_id=school_id, **data.model_dump()); db.add(item); db.flush()
-    db.add(AuditEventModel(
-        actor_id=user.id,
-        action="create",
-        entity_type="teacher",
-        entity_id=item.id,
-        school_id=school_id,
-        changes={
-            "user_id": item.user_id,
-            "external_id": item.external_id,
-            "full_name": item.full_name,
-            "subject": item.subject,
-        },
-    ))
-    db.commit(); db.refresh(item)
-    return {"id": item.id, "external_id": item.external_id, "subject": item.subject, "is_active": item.is_active}
-
-
-@router.post("/schools/{school_id}/access", status_code=201)
-def create_access(school_id: str, data: AccessCreate, db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    require_school_access(db, user.id, school_id, {"system_admin"})
-    if not db.query(UserModel).filter_by(id=data.user_id).first(): raise HTTPException(status_code=404, detail="Пользователь не найден")
-    if data.role == "teacher" and find_user_teacher_in_school(db, data.user_id, school_id) is None:
-        raise HTTPException(status_code=422, detail="Сначала свяжите учётную запись с педагогом через teachers.user_id")
-    if db.query(UserSchoolAccessModel).filter_by(user_id=data.user_id, school_id=school_id).first(): raise HTTPException(status_code=409, detail="Доступ уже настроен")
-    values = data.model_dump(exclude={"role"})
-    item = UserSchoolAccessModel(school_id=school_id, **values)
-    db.add(item); assign_role(db, data.user_id, data.role); db.flush()
-    db.add(AuditEventModel(
-        actor_id=user.id,
-        action="grant",
-        entity_type="user_school_access",
-        entity_id=item.id,
-        school_id=school_id,
-        changes={"user_id": data.user_id, "role": data.role.value},
-    ))
-    db.commit(); db.refresh(item)
-    return {"id": item.id, "user_id": item.user_id, "school_id": item.school_id, "role": data.role}
 
 
 async def read_xlsx(file: UploadFile) -> bytes:
@@ -254,19 +128,6 @@ def download_import(school_id: str, import_id: str, db: Session = Depends(get_db
     path = (PRIVATE_UPLOAD_DIR / item.stored_file_key).resolve()
     if path.parent != PRIVATE_UPLOAD_DIR.resolve() or not path.exists(): raise HTTPException(status_code=404, detail="Файл не найден")
     return FileResponse(path, filename=item.original_filename, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-
-@router.get("/schools/{school_id}/teachers")
-def teachers(school_id: str, subject: str | None = None, page_no: int = Query(1, alias="page", ge=1), page_size: int = Query(50, ge=1, le=200), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
-    require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES | {"teacher"})
-    query = db.query(TeacherModel).filter_by(school_id=school_id)
-    own_teacher_id = get_teacher_id_filter(db, user.id, school_id)
-    if own_teacher_id: query = query.filter_by(id=own_teacher_id)
-    if subject: query = query.filter(TeacherModel.subject == subject)
-    result = []
-    for teacher in query.order_by(TeacherModel.external_id).all():
-        result.append({"id": teacher.id, "user_id": teacher.user_id, "external_id": teacher.external_id, "full_name": teacher.full_name, "subject": teacher.subject, "is_active": teacher.is_active})
-    return page(result, page_no, page_size)
 
 
 @future_router.get("/schools/{school_id}/teachers/{teacher_id}/norms")
