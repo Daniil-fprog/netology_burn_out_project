@@ -40,17 +40,13 @@ from app.schemas.survey import (
 )
 from app.services.survey_service import active_consent, response_dict, seed_surveys, validate_answers, validate_period
 from app.services.workload_service import total
+from app.utils.pagination import paginate
 
 
 router = APIRouter(tags=["Teacher surveys"])
 # MVP 2 FUTURE: response revisions, NLP and ML dataset endpoints are preserved
 # on this router but intentionally not included in app.api.v1.
 future_router = APIRouter(tags=["MVP 2: survey processing"])
-
-
-def pagination(items: list, page: int, size: int) -> dict:
-    start = (page - 1) * size
-    return {"page": page, "page_size": size, "total": len(items), "items": items[start:start + size]}
 
 
 def get_template(db: Session, code: str, version: str | None = None) -> SurveyTemplateModel:
@@ -236,7 +232,7 @@ def responses(school_id: str, teacher_id: str | None = None, survey_code: str | 
     if date_from: q = q.filter(SurveyResponseModel.assessment_date >= date_from)
     if date_to: q = q.filter(SurveyResponseModel.assessment_date <= date_to)
     rows = q.order_by(SurveyResponseModel.assessment_date.desc()).all()
-    return pagination([response_dict(x, own_teacher_id == x.teacher_id) for x in rows], page, page_size)
+    return paginate([response_dict(x, own_teacher_id == x.teacher_id) for x in rows], page, page_size)
 
 
 @router.get("/schools/{school_id}/survey-responses/{response_id}")
@@ -249,7 +245,7 @@ def history(school_id: str, teacher_id: str, page: int = Query(1, ge=1), page_si
     require_school_access(db, user.id, school_id, SURVEY_ROLES); require_teacher_access(db, user.id, school_id, teacher_id); get_teacher_in_school(db, school_id, teacher_id)
     rows = db.query(SurveyResponseModel).filter_by(school_id=school_id, teacher_id=teacher_id).order_by(SurveyResponseModel.assessment_date.desc()).all()
     own_teacher = find_user_teacher_in_school(db, user.id, school_id)
-    return pagination([response_dict(x, own_teacher is not None and own_teacher.id == x.teacher_id) for x in rows], page, page_size)
+    return paginate([response_dict(x, own_teacher is not None and own_teacher.id == x.teacher_id) for x in rows], page, page_size)
 
 
 @router.get("/schools/{school_id}/survey-analytics/completion")

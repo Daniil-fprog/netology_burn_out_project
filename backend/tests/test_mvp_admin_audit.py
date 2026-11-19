@@ -102,6 +102,30 @@ def test_regular_user_cannot_create_school(client, auth_headers):
     assert response.status_code == 403
 
 
+def test_work_type_directory_is_readable_by_all_authenticated_users_but_editable_only_by_system_admin(
+    client,
+    db_session,
+    test_user,
+    auth_headers,
+):
+    assert client.get("/api/v1/work-types", headers=auth_headers).status_code == 200
+    assert client.get(
+        "/api/v1/work-types?include_archived=true",
+        headers=auth_headers,
+    ).status_code == 200
+
+    payload = {
+        "code": "test_work_type",
+        "name": "Тестовый вид работы",
+        "category_group": "test",
+        "complexity_weight": "0.1000",
+    }
+    assert client.post("/api/v1/work-types", headers=auth_headers, json=payload).status_code == 403
+
+    assign_role(db_session, test_user.id, "system_admin")
+    assert client.post("/api/v1/work-types", headers=auth_headers, json=payload).status_code == 201
+
+
 def test_consent_withdrawal_is_audited(
     client,
     db_session,

@@ -17,8 +17,7 @@ from app.services.work_type_service import (
 
 
 router = APIRouter(tags=["Work types"])
-WORK_TYPE_EDITOR_ROLES = {"head", "group_head", "system_admin"}
-WORK_TYPE_VIEWER_ROLES = {"teacher", "director", "head", "group_head", "system_admin"}
+WORK_TYPE_EDITOR_ROLES = {"system_admin"}
 
 
 @router.get("/work-types", response_model=list[WorkTypeOut])
@@ -27,11 +26,6 @@ def list_work_type_directory(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
-    roles = user_role_codes(db, user.id)
-    if roles.isdisjoint(WORK_TYPE_VIEWER_ROLES):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
-    if include_archived and roles.isdisjoint(WORK_TYPE_EDITOR_ROLES):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
     return list_work_types(db, include_archived=include_archived)
 
 
@@ -43,6 +37,7 @@ def create_work_type_endpoint(
 ):
     if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
+
     return create_work_type(db, data, user.id)
 
 
@@ -55,6 +50,7 @@ def update_work_type_endpoint(
 ):
     if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
+        
     return update_work_type(db, work_type_id, data, user.id)
 
 

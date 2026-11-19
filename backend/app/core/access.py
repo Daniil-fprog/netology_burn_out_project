@@ -49,6 +49,7 @@ def user_role_codes(db: Session, user_id: int) -> set[str]:
         .filter(UserRoleModel.user_id == user_id)
         .all()
     )
+    
     return {code for (code,) in rows}
 
 

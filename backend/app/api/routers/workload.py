@@ -39,16 +39,13 @@ from app.schemas.analytics import PlannedDashboardOut
 from app.schemas.workload import ActualPatch, DailyWorkLogCreate
 from app.services.analytics_service import get_planned_dashboard
 from app.services.workload_service import daily_dict, import_workbook, parse_workbook, validation_report
+from app.utils.pagination import paginate
 
 
 router = APIRouter(tags=["Teacher workload"])
 # MVP 2 FUTURE: preserved endpoints for plans, norms and XLSX import/export.
 # This router is intentionally not included in app.api.v1.
 future_router = APIRouter(tags=["MVP 2: planned workload"])
-def page(items: list, page_no: int, page_size: int) -> dict:
-    start = (page_no - 1) * page_size
-    return {"page": page_no, "page_size": page_size, "total": len(items), "items": items[start:start + page_size]}
-
 
 def batch_dict(item: ImportBatchModel) -> dict:
     return {"id": item.id, "school_id": item.school_id, "original_filename": item.original_filename, "sha256": item.sha256, "status": item.status, "mode": item.mode, "effective_from": item.effective_from, "rows_total": item.rows_total, "rows_created": item.rows_created, "rows_updated": item.rows_updated, "rows_skipped": item.rows_skipped, "validation_report": item.validation_report, "imported_at": item.imported_at}
@@ -109,7 +106,7 @@ async def create_import(school_id: str, file: UploadFile = File(...), effective_
 def list_imports(school_id: str, page_no: int = Query(1, alias="page", ge=1), page_size: int = Query(50, ge=1, le=200), db: Session = Depends(get_db), user: UserModel = Depends(get_current_user)):
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     rows = db.query(ImportBatchModel).filter_by(school_id=school_id).order_by(ImportBatchModel.created_at.desc()).all()
-    return page([batch_dict(x) for x in rows], page_no, page_size)
+    return paginate([batch_dict(x) for x in rows], page_no, page_size)
 
 
 @future_router.get("/schools/{school_id}/workload/imports/{import_id}")
@@ -245,7 +242,7 @@ def daily(school_id: str, teacher_id: str | None = None, date_from: date | None 
     if sort not in {"date_asc", "date_desc"}: raise HTTPException(status_code=422, detail="Недопустимая сортировка")
     rows = daily_rows(db, school_id, teacher_id, date_from, date_to, own_teacher_id is not None)
     rows.sort(key=lambda x: x["work_date"], reverse=sort == "date_desc")
-    return page(rows, page_no, page_size)
+    return paginate(rows, page_no, page_size)
 
 
 @router.get("/schools/{school_id}/workload/weekly")
@@ -262,7 +259,7 @@ def weekly(school_id: str, teacher_id: str | None = None, week_from: date | None
         weekend = sum(r["actual"]["total_hours"] or 0 for r in group if r["actual"] and date.fromisoformat(r["work_date"]).weekday() >= 5)
         result.append({"teacher_id": tid, "week_start": week, "actual_hours": a, "weekend_hours": weekend, "observed_days": len(actuals), "completed_days": sum(1 for row in group if row["actual"]["status"] == "completed")})
     result.sort(key=lambda x: x["week_start"], reverse=True)
-    return page(result, page_no, page_size)
+    return paginate(result, page_no, page_size)
 
 
 @router.patch("/schools/{school_id}/workload/daily/{record_id}")
