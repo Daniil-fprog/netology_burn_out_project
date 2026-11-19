@@ -60,6 +60,21 @@ def test_system_admin_has_global_school_access_and_actions_are_audited(
     )
     assert teacher_response.status_code == 201
 
+    duplicate_teacher_response = client.post(
+        f"/api/v1/schools/{school_id}/teachers",
+        headers=auth_headers,
+        json={
+            "user_id": other_user.id,
+            "external_id": "teacher-duplicate",
+            "full_name": "Иванова Анна",
+            "subject": "Математика",
+        },
+    )
+    assert duplicate_teacher_response.status_code == 409
+    assert duplicate_teacher_response.json() == {
+        "detail": "У пользователя уже есть профиль преподавателя"
+    }
+
     access_response = client.post(
         f"/api/v1/schools/{school_id}/members",
         headers=auth_headers,

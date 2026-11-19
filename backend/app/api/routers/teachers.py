@@ -37,6 +37,8 @@ def create_teacher(
         raise HTTPException(status_code=409, detail="Такой external_id уже есть")
     if data.user_id is not None and not db.query(UserModel).filter_by(id=data.user_id).first():
         raise HTTPException(status_code=404, detail="Пользователь не найден")
+    if data.user_id is not None and db.query(TeacherModel).filter_by(user_id=data.user_id).first():
+        raise HTTPException(status_code=409, detail="У пользователя уже есть профиль преподавателя")
 
     teacher = TeacherModel(school_id=school_id, **data.model_dump())
     db.add(teacher)
