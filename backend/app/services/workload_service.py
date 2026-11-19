@@ -30,7 +30,7 @@ from app.models.workload import (
 
 # MVP 2 FUTURE: imports, plans and workload norms below are intentionally
 # preserved for the next product stage. Active MVP endpoints call only
-# total() and daily_dict(), which use actual_work_entries/daily_work_logs.
+# total() and daily_dict(), which use workload_actual_entries/workload_daily_logs.
 
 
 def decimal_or_none(value: Any) -> Decimal | None:

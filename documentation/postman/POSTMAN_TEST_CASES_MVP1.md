@@ -292,7 +292,7 @@ ORDER BY changed_at DESC;
 - `create / teacher`;
 - `grant / user_school_access`;
 - `create / work_type` и его изменение/архивирование;
-- `create / daily_work_logs` и `update / daily_work_logs`;
+- `create / workload_daily_logs` и `update / workload_daily_logs`;
 - `create / survey_consent`;
 - `export / surveys`;
 - `withdraw / survey_response`;

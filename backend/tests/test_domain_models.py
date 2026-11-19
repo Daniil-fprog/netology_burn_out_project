@@ -16,8 +16,8 @@ from app.schemas.workload import ActualWorkEntryCreate, DailyWorkLogCreate
 def test_required_domain_tables_are_registered():
     expected = {
         "roles", "user_roles", "school_groups", "school_group_schools",
-        "user_school_group_assignments", "work_types", "workload_plan_versions",
-        "planned_work_items", "daily_work_logs", "actual_work_entries", "export_jobs",
+        "user_school_group_assignments", "workload_types", "workload_plan_versions",
+        "workload_planned_items", "workload_daily_logs", "workload_actual_entries", "export_jobs",
     }
     assert expected <= set(Base.metadata.tables)
     assert "permissions" not in Base.metadata.tables
@@ -47,7 +47,7 @@ def test_workload_import_contract_is_derived_from_enums():
 
 
 def test_work_type_has_no_persistence_unit_fields():
-    columns = set(Base.metadata.tables["work_types"].columns)
+    columns = set(Base.metadata.tables["workload_types"].columns)
     assert "default_unit" not in columns
     assert "allowed_units" not in columns
     work_type = WorkTypeCreate(

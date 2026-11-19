@@ -13,7 +13,7 @@ class WorkTypeModel(TimestampMixin, Base):
     workload records always keep a valid reference.
     """
 
-    __tablename__ = "work_types"
+    __tablename__ = "workload_types"
     __table_args__ = (
         CheckConstraint(
             "complexity_weight BETWEEN 0 AND 1",

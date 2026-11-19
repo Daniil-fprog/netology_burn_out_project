@@ -57,7 +57,7 @@ MVP 1 использует 15 предметных таблиц:
 | Учётные записи | `users` | Вход, профиль, статус пользователя |
 | Роли | `roles`, `user_roles` | Роли и их назначение пользователям |
 | Организация | `schools`, `teachers`, `user_school_access` | Школы, преподаватели, область доступа |
-| Фактическая нагрузка | `work_types`, `daily_work_logs`, `actual_work_entries` | Виды работ, дневные журналы, фактические часы |
+| Фактическая нагрузка | `workload_types`, `workload_daily_logs`, `workload_actual_entries` | Виды работ, дневные журналы, фактические часы |
 | Опросы | `survey_templates`, `survey_questions`, `survey_consents`, `survey_responses`, `survey_answers` | Версии анкет, вопросы, согласия и ответы |
 | Аудит | `audit_events` | Фиксация чувствительных действий |
 
@@ -332,8 +332,8 @@ MVP 1 использует 15 предметных таблиц:
 
 Сохранённые, но отключённые направления:
 
-- `teacher_workload_norms`, `workload_plan_versions`, `planned_work_items` — нормы и планы;
-- `import_batches` — XLSX-импорт;
+- `workload_teacher_norms`, `workload_plan_versions`, `workload_planned_items` — нормы и планы;
+- `workload_import_batches` — XLSX-импорт;
 - `school_groups`, `school_group_schools`, `user_school_group_assignments` — группы школ;
 - `export_jobs` — фоновые экспорты;
 - `survey_response_revisions` — история исправлений;

@@ -8,9 +8,9 @@ Until the user explicitly expands the product scope, new backend development mus
 - `schools`
 - `teachers`
 - `user_school_access`
-- `work_types`
-- `daily_work_logs`
-- `actual_work_entries`
+- `workload_types`
+- `workload_daily_logs`
+- `workload_actual_entries`
 - `survey_templates`
 - `survey_questions`
 - `survey_consents`
@@ -26,7 +26,7 @@ Keep all model modules imported by `app.models` so SQLAlchemy metadata and the e
 
 For MVP code, leave these compatibility references unset (`NULL`):
 
-- `actual_work_entries.planned_work_item_id`
+- `workload_actual_entries.planned_work_item_id`
 - `audit_events.import_batch_id`
 
 When the user activates a future subsystem, update `app/models/scope.py`, `app/models/README.md`, and this file in the same change.

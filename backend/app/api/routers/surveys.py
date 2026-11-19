@@ -392,7 +392,7 @@ def workload_and_wellbeing(school_id: str, teacher_id: str, date_from: date, dat
         )["workload"] = {
             "actual_total_hours": float(total(list(log.entries))),
             "status": log.status,
-            "source": "daily_work_logs",
+            "source": "workload_daily_logs",
         }
     own_teacher = find_user_teacher_in_school(db, user.id, school_id)
     for item in responses: by_date.setdefault(str(item.assessment_date), {"date": item.assessment_date, "workload": None, "surveys": []})["surveys"].append(response_dict(item, own_teacher is not None and own_teacher.id == item.teacher_id))

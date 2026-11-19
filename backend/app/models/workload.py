@@ -21,7 +21,7 @@ from app.models.base import TimestampMixin, new_uuid
 class TeacherWorkloadNormModel(TimestampMixin, Base):
     """An individual weekly teaching norm valid for a date interval."""
 
-    __tablename__ = "teacher_workload_norms"
+    __tablename__ = "workload_teacher_norms"
     __table_args__ = (
         CheckConstraint("contract_teaching_hours_per_week >= 0", name="ck_norm_contract_nonnegative"),
         CheckConstraint("standard_teaching_hours_per_rate > 0", name="ck_norm_standard_positive"),
@@ -37,7 +37,7 @@ class TeacherWorkloadNormModel(TimestampMixin, Base):
     standard_teaching_hours_per_rate = Column(Numeric(6, 2), nullable=False)
     comment = Column(Text)
     plan_source = Column(String(255))
-    source_import_id = Column(String(36), ForeignKey("import_batches.id", ondelete="SET NULL"))
+    source_import_id = Column(String(36), ForeignKey("workload_import_batches.id", ondelete="SET NULL"))
 
 
 class WorkloadPlanVersionModel(TimestampMixin, Base):
@@ -55,7 +55,7 @@ class WorkloadPlanVersionModel(TimestampMixin, Base):
     status = Column(String(20), nullable=False, default="draft")
     effective_from = Column(Date, nullable=False)
     effective_to = Column(Date, nullable=False)
-    source_import_id = Column(String(36), ForeignKey("import_batches.id", ondelete="SET NULL"))
+    source_import_id = Column(String(36), ForeignKey("workload_import_batches.id", ondelete="SET NULL"))
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     published_at = Column(DateTime(timezone=True))
     change_comment = Column(Text)
@@ -66,7 +66,7 @@ class WorkloadPlanVersionModel(TimestampMixin, Base):
 class PlannedWorkItemModel(TimestampMixin, Base):
     """One planned work item, suitable for linking an actual entry to it."""
 
-    __tablename__ = "planned_work_items"
+    __tablename__ = "workload_planned_items"
     __table_args__ = (
         CheckConstraint("duration_hours > 0", name="ck_planned_work_duration_hours_positive"),
         UniqueConstraint(
@@ -87,7 +87,7 @@ class PlannedWorkItemModel(TimestampMixin, Base):
         index=True,
     )
     teacher_id = Column(String(36), ForeignKey("teachers.id", ondelete="RESTRICT"), nullable=False, index=True)
-    work_type_id = Column(String(36), ForeignKey("work_types.id", ondelete="RESTRICT"), nullable=False, index=True)
+    work_type_id = Column(String(36), ForeignKey("workload_types.id", ondelete="RESTRICT"), nullable=False, index=True)
     work_date = Column(Date, nullable=False, index=True)
     day_type = Column(String(40), nullable=False)
     subject = Column(String(150))
@@ -102,7 +102,7 @@ class PlannedWorkItemModel(TimestampMixin, Base):
 class DailyWorkLogModel(TimestampMixin, Base):
     """Status and ownership of a teacher's daily time sheet."""
 
-    __tablename__ = "daily_work_logs"
+    __tablename__ = "workload_daily_logs"
     __table_args__ = (
         CheckConstraint("status IN ('not_started', 'draft', 'completed')", name="ck_daily_work_log_status"),
         UniqueConstraint("teacher_id", "work_date", name="uq_daily_work_log_teacher_date"),
@@ -123,7 +123,7 @@ class DailyWorkLogModel(TimestampMixin, Base):
 class ActualWorkEntryModel(TimestampMixin, Base):
     """One actual time entry, optionally linked to one planned work item."""
 
-    __tablename__ = "actual_work_entries"
+    __tablename__ = "workload_actual_entries"
     __table_args__ = (
         CheckConstraint(
             "duration_hours > 0 AND duration_hours <= 24",
@@ -135,17 +135,17 @@ class ActualWorkEntryModel(TimestampMixin, Base):
     id = Column(String(36), primary_key=True, default=new_uuid)
     daily_log_id = Column(
         String(36),
-        ForeignKey("daily_work_logs.id", ondelete="CASCADE"),
+        ForeignKey("workload_daily_logs.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     planned_work_item_id = Column(
         String(36),
-        ForeignKey("planned_work_items.id", ondelete="SET NULL"),
+        ForeignKey("workload_planned_items.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    work_type_id = Column(String(36), ForeignKey("work_types.id", ondelete="RESTRICT"), nullable=False, index=True)
+    work_type_id = Column(String(36), ForeignKey("workload_types.id", ondelete="RESTRICT"), nullable=False, index=True)
     duration_hours = Column(Numeric(10, 4), nullable=False)
     location = Column(String(20), nullable=False)
     comment = Column(Text)

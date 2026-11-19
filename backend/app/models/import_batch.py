@@ -9,7 +9,7 @@ from app.models.base import TimestampMixin, new_uuid
 class ImportBatchModel(TimestampMixin, Base):
     """A validated workload import and its row-level result summary."""
 
-    __tablename__ = "import_batches"
+    __tablename__ = "workload_import_batches"
     __table_args__ = (UniqueConstraint("school_id", "sha256", name="uq_import_school_sha256"),)
 
     id = Column(String(36), primary_key=True, default=new_uuid)

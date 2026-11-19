@@ -17,7 +17,7 @@ class AuditEventModel(Base):
     entity_type = Column(String(80), nullable=False)
     entity_id = Column(String(36))
     school_id = Column(String(36), ForeignKey("schools.id", ondelete="SET NULL"), index=True)
-    import_batch_id = Column(String(36), ForeignKey("import_batches.id", ondelete="SET NULL"))
+    import_batch_id = Column(String(36), ForeignKey("workload_import_batches.id", ondelete="SET NULL"))
     purpose = Column(String(80))
     changed_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     changes = Column(JSON, nullable=False, default=dict)
