@@ -2,7 +2,16 @@
 
 from fastapi import APIRouter
 
-from app.api.routers import auth, schools, surveys, teachers, users, work_types, workload
+from app.api.routers import (
+    auth,
+    schools,
+    surveys,
+    teachers,
+    users,
+    work_types,
+    workload,
+    workload_analytic,
+)
 
 
 router = APIRouter(prefix="/api/v1")
@@ -19,4 +28,5 @@ router.include_router(schools.router)
 router.include_router(teachers.router)
 router.include_router(work_types.router)
 router.include_router(workload.router)
+router.include_router(workload_analytic.router)
 router.include_router(surveys.router)

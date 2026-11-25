@@ -93,6 +93,8 @@ def planned_dashboard(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает сводную аналитику плановой нагрузки; маршрут зарезервирован для MVP 2."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     try:
         return get_planned_dashboard(db, {school_id}, date_from, date_to)
@@ -120,6 +122,8 @@ async def validate_import(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Проверяет XLSX нагрузки без сохранения данных; маршрут зарезервирован для MVP 2."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     if mode not in {"insert_only", "upsert"}:
         raise HTTPException(
@@ -141,6 +145,8 @@ async def create_import(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Сохраняет XLSX и импортирует нормы и плановую нагрузку в рамках MVP 2."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     if mode not in {"insert_only", "upsert"}:
         raise HTTPException(
@@ -185,6 +191,8 @@ def list_imports(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает историю импортов нагрузки школы; маршрут зарезервирован для MVP 2."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     rows = (
         db.query(ImportBatchModel)
@@ -202,6 +210,8 @@ def get_import(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает сведения и отчёт валидации выбранного импорта нагрузки MVP 2."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     item = (
         db.query(ImportBatchModel).filter_by(id=import_id, school_id=school_id).first()
@@ -218,6 +228,8 @@ def download_import(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Скачивает исходный XLSX выбранного импорта; маршрут зарезервирован для MVP 2."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     item = (
         db.query(ImportBatchModel).filter_by(id=import_id, school_id=school_id).first()
@@ -241,6 +253,8 @@ def norms(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает историю нормативов преподавателя; маршрут зарезервирован для MVP 2."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES | {"teacher"})
     require_teacher_access(db, user.id, school_id, teacher_id)
     get_teacher_in_school(db, school_id, teacher_id)
@@ -355,7 +369,8 @@ def create_daily_log(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
-    """Create one daily actual-work log for the authenticated teacher."""
+    """Создаёт дневной журнал фактической нагрузки текущего преподавателя."""
+
     require_school_access(db, user.id, school_id, {"teacher"})
     teacher = require_own_teacher(db, user.id, school_id)
 
@@ -428,7 +443,7 @@ def create_daily_log(
 def daily(
     school_id: str,
     teacher_id: str | None = None,
-    date_from: date | None = None,
+    date_from: date = Query(..., description="Дата отчёта или начало периода"),
     date_to: date | None = None,
     sort: str = "date_desc",
     page_no: int = Query(1, alias="page", ge=1),
@@ -436,6 +451,8 @@ def daily(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает дневные записи и итоговый отчёт за выбранную дату или период."""
+
     require_school_access(db, user.id, school_id, FACT_ROLES)
 
     own_teacher_id = get_teacher_id_filter(db, user.id, school_id)
@@ -448,68 +465,41 @@ def daily(
     if sort not in {"date_asc", "date_desc"}:
         raise HTTPException(status_code=422, detail="Недопустимая сортировка")
 
+    report_date_to = date_to or date_from
+    if date_from > report_date_to:
+        raise HTTPException(status_code=422, detail="date_from позже date_to")
+
     rows = daily_rows(
-        db, school_id, teacher_id, date_from, date_to, own_teacher_id is not None
+        db,
+        school_id,
+        teacher_id,
+        date_from,
+        report_date_to,
+        own_teacher_id is not None,
     )
 
     rows.sort(key=lambda x: x["work_date"], reverse=sort == "date_desc")
 
-    return paginate(rows, page_no, page_size)
-
-
-@router.get("/schools/{school_id}/workload/weekly")
-def weekly(
-    school_id: str,
-    teacher_id: str | None = None,
-    week_from: date | None = None,
-    week_to: date | None = None,
-    page_no: int = Query(1, alias="page", ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user),
-):
-    require_school_access(db, user.id, school_id, FACT_ROLES)
-
-    teacher_id = get_teacher_id_filter(db, user.id, school_id) or teacher_id
-
-    rows = daily_rows(db, school_id, teacher_id, week_from, week_to, False)
-
-    grouped = defaultdict(list)
-    for row in rows:
-        grouped[(row["teacher_id"], row["metrics"]["week_start"])].append(row)
-
-    result = []
-    for (tid, week), group in grouped.items():
-        actuals = [
-            r["actual"]["total_hours"]
-            for r in group
-            if r["actual"] and r["actual"]["total_hours"] is not None
-        ]
-
-        a = sum(actuals) if actuals else None
-
-        weekend = sum(
-            r["actual"]["total_hours"] or 0
-            for r in group
-            if r["actual"] and date.fromisoformat(r["work_date"]).weekday() >= 5
-        )
-
-        result.append(
-            {
-                "teacher_id": tid,
-                "week_start": week,
-                "actual_hours": a,
-                "weekend_hours": weekend,
-                "observed_days": len(actuals),
-                "completed_days": sum(
-                    1 for row in group if row["actual"]["status"] == "completed"
+    result = paginate(rows, page_no, page_size)
+    result.update(
+        {
+            "date_from": date_from,
+            "date_to": report_date_to,
+            "summary": {
+                "actual_hours": sum(row["actual"]["total_hours"] or 0 for row in rows),
+                "weekend_hours": sum(
+                    row["actual"]["total_hours"] or 0
+                    for row in rows
+                    if date.fromisoformat(row["work_date"]).weekday() >= 5
                 ),
-            }
-        )
-
-    result.sort(key=lambda x: x["week_start"], reverse=True)
-
-    return paginate(result, page_no, page_size)
+                "observed_days": len(rows),
+                "completed_days": sum(
+                    1 for row in rows if row["actual"]["status"] == "completed"
+                ),
+            },
+        }
+    )
+    return result
 
 
 @router.patch("/schools/{school_id}/workload/daily/{record_id}")
@@ -521,6 +511,8 @@ def patch_actual(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Изменяет собственный дневной журнал, его работы и состояние завершения."""
+
     require_school_access(db, user.id, school_id, {"teacher"})
 
     own_teacher = require_own_teacher(db, user.id, school_id)
@@ -696,6 +688,8 @@ def export_workload(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Выгружает разрешённые данные нагрузки в XLSX; маршрут зарезервирован для MVP 2."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES | {"teacher"})
     teacher_id = get_teacher_id_filter(db, user.id, school_id) or teacher_id
     roles = user_role_codes(db, user.id)
@@ -729,6 +723,8 @@ def workload_template(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает пустой XLSX-шаблон нагрузки; маршрут зарезервирован для MVP 2."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES)
     return StreamingResponse(
         make_workbook(db, school_id, None, None, None, False),

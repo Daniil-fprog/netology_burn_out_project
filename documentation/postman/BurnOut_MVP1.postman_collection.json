@@ -485,7 +485,7 @@
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}/corrections", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}", "corrections"] },
-            "description": "Владелец меняет ответы непринятого опроса. Обновляет updated_at, увеличивает lock_version и сохраняет предыдущие ответы в истории ревизий."
+            "description": "Владелец меняет ответы непринятого опроса. Обновляет updated_at, увеличивает lock_version и фиксирует описание изменения в аудите."
           }
         },
         {

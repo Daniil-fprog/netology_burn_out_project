@@ -17,7 +17,6 @@ from app.models.survey import (
     SurveyNLPAnalysisModel,
     SurveyQuestionModel,
     SurveyResponseModel,
-    SurveyResponseRevisionModel,
     SurveyTemplateModel,
 )
 from app.models.teacher import TeacherModel
@@ -41,7 +40,6 @@ from app.schemas.survey import (
     SurveyNLPAnalysisOut,
     SurveyQuestionOut,
     SurveyResponseOut,
-    SurveyResponseRevisionOut,
     SurveyTemplateOut,
 )
 from app.schemas.teacher import TeacherOut
@@ -71,7 +69,6 @@ SCHEMA_MODEL_PAIRS = [
     (SurveyQuestionOut, SurveyQuestionModel, set()),
     (SurveyResponseOut, SurveyResponseModel, set()),
     (SurveyAnswerOut, SurveyAnswerModel, set()),
-    (SurveyResponseRevisionOut, SurveyResponseRevisionModel, set()),
     (SurveyNLPAnalysisOut, SurveyNLPAnalysisModel, set()),
     (TeacherOut, TeacherModel, set()),
     (UserOut, UserModel, {"password_hash"}),
@@ -108,7 +105,6 @@ def test_public_schema_package_excludes_future_features():
         "PlannedWorkItemCreate",
         "SchoolGroupCreate",
         "SurveyNLPAnalysisOut",
-        "SurveyResponseRevisionOut",
         "WorkloadNormCreate",
         "WorkloadPlanVersionCreate",
     }

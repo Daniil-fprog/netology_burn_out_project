@@ -8,8 +8,7 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.survey import (
-    SurveyConsentModel,
+from app.models import (
     SurveyQuestionModel,
     SurveyResponseModel,
     SurveyTemplateModel,
@@ -95,8 +94,36 @@ def seed_surveys(db: Session, catalog: dict | None = None) -> dict:
         created += 1
 
     db.commit()
-    
+
     return {"created": created, "templates": len(catalog.get("surveys", []))}
+
+
+def get_template(
+    db: Session, code: str, version: str | None = None
+) -> SurveyTemplateModel:
+    query = db.query(SurveyTemplateModel).filter_by(code=code, status="published")
+    query = (
+        query.filter_by(version=version)
+        if version is not None
+        else query.filter_by(is_current=True)
+    )
+    template = query.first()
+    if template is None:
+        raise HTTPException(status_code=404, detail="Опрос не найден")
+    return template
+
+
+def get_response(
+    db: Session, school_id: str, response_id: str
+) -> SurveyResponseModel:
+    response = (
+        db.query(SurveyResponseModel)
+        .filter_by(id=response_id, school_id=school_id)
+        .first()
+    )
+    if response is None:
+        raise HTTPException(status_code=404, detail="Ответ не найден")
+    return response
 
 
 def validate_period(
@@ -130,7 +157,7 @@ def validate_period(
 
 
 def validate_answers(
-    questions: list[SurveyQuestionModel], answers: dict[str, Any], submitted: bool
+    questions: list[SurveyQuestionModel], answers: dict[str, Any], require_complete: bool
 ) -> dict[SurveyQuestionModel, Any]:
     by_code = {q.code: q for q in questions}
     unknown = set(answers) - set(by_code)
@@ -139,7 +166,7 @@ def validate_answers(
             status_code=422,
             detail=f"Неизвестные question_code: {', '.join(sorted(unknown))}",
         )
-    if submitted:
+    if require_complete:
         missing = [q.code for q in questions if q.required and q.code not in answers]
         if missing:
             raise HTTPException(
@@ -184,24 +211,6 @@ def validate_answers(
     return result
 
 
-def active_consent(
-    db: Session, school_id: str, teacher_id: str, consent_id: str | None
-) -> SurveyConsentModel | None:
-    if not consent_id:
-        return None
-    return (
-        db.query(SurveyConsentModel)
-        .filter_by(
-            id=consent_id,
-            school_id=school_id,
-            teacher_id=teacher_id,
-            purpose="survey_storage",
-            withdrawn_at=None,
-        )
-        .first()
-    )
-
-
 def response_dict(response: SurveyResponseModel, include_comments: bool = True) -> dict:
     answers = {}
     for item in response.answers:
@@ -221,7 +230,12 @@ def response_dict(response: SurveyResponseModel, include_comments: bool = True) 
         "comment_reference_date": response.comment_reference_date,
         "status": response.status,
         "source": response.source,
-        "submitted_at": response.submitted_at,
+        "consent_given": response.consent_given,
+        "consented_at": response.consented_at,
+        "approved_at": response.approved_at,
         "lock_version": response.lock_version,
+        "created_at": response.created_at,
+        "updated_at": response.updated_at,
         "answers": answers,
     }
+

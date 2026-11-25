@@ -16,10 +16,10 @@ from app.models import (
 from app.models.survey import (
     SurveyQuestionModel,
     SurveyResponseModel,
-    SurveyResponseRevisionModel,
     SurveyTemplateModel,
 )
 from app.services.survey_service import seed_surveys, validate_answers
+from app.services.workload_analytic_service import pseudo, safe_cell
 from app.core.workload_import_contract import ACTUAL_HEADERS, NORM_HEADERS, PLAN_HEADERS
 from app.services.workload_service import parse_workbook, total
 
@@ -38,6 +38,15 @@ def test_workload_total_keeps_missingness():
         SimpleNamespace(duration_hours=Decimal("0.69")),
     ]
     assert total(entries) == Decimal("5.90")
+
+
+def test_analytic_helpers_pseudonymize_and_protect_spreadsheet_cells():
+    assert pseudo("teacher-1") == pseudo("teacher-1")
+    assert len(pseudo("teacher-1")) == 24
+    assert pseudo("teacher-1") != pseudo("teacher-2")
+    assert safe_cell(" =SUM(A1:A2)") == "' =SUM(A1:A2)"
+    assert safe_cell("обычный текст") == "обычный текст"
+    assert safe_cell(3) == 3
 
 
 def test_realistic_workbook_contract_is_parsed():
@@ -154,12 +163,13 @@ def test_survey_response_approve_and_admin_deactivate(
     assert corrected["lock_version"] == 2
     assert corrected["updated_at"] != original_updated_at
 
-    revision = db_session.query(SurveyResponseRevisionModel).filter_by(
-        response_id=response_id
+    correction_audit = db_session.query(AuditEventModel).filter_by(
+        entity_type="survey_response", entity_id=response_id, action="correct"
     ).one()
-    assert revision.revision_no == 1
-    assert revision.reason == "Исправлена оценка усталости"
-    assert revision.previous_answers_jsonb == answers
+    assert correction_audit.changes == {
+        "description": "Исправлена оценка усталости",
+        "answer_codes": ["fatigue_score"],
+    }
 
     # Approve only changes the status; answers were saved atomically during creation.
     approve_response = client.post(
