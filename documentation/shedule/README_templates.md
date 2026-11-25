@@ -28,7 +28,6 @@
 | `EXPORT_ML_dataset.xlsx` | Псевдонимизированные ML-признаки и пустой шаблон меток |
 | `EXPORT_import_history.xlsx` | История импортов |
 | `EXPORT_audit_events.xlsx` | Аудит |
-| `EXPORT_survey_consents.xlsx` | Согласия |
 | `EXPORT_export_history.xlsx` | История экспортов |
 
 ### Важные ограничения

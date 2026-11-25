@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "56c26448-e850-4a44-894f-e7b6c99546db",
     "name": "BurnOut API — MVP 1",
-    "description": "Коллекция активных endpoint-ов MVP 1. Рекомендуемый порядок: 01 → 07. Перед запуском API выполните alembic upgrade head. По умолчанию используется системный администратор daniil/admin123, создаваемый seed-скриптом приложения. Запрос импорта шаблонов опросов требует ручного выбора JSON-файла.",
+    "description": "Коллекция активных endpoint-ов MVP 1. Рекомендуемый порядок: 01 → 08. Перед запуском API выполните alembic upgrade head. По умолчанию используется системный администратор daniil/admin123, создаваемый seed-скриптом приложения. Запрос импорта шаблонов опросов требует ручного выбора JSON-файла.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -42,7 +42,6 @@
     { "key": "work_type_id", "value": "", "type": "string" },
     { "key": "created_work_type_id", "value": "", "type": "string" },
     { "key": "daily_log_id", "value": "", "type": "string" },
-    { "key": "consent_id", "value": "", "type": "string" },
     { "key": "survey_response_id", "value": "", "type": "string" },
     { "key": "survey_code", "value": "daily_checkin", "type": "string" },
     { "key": "survey_version", "value": "1.0.0", "type": "string" },
@@ -403,7 +402,7 @@
           }
         },
         {
-          "name": "Дневные записи",
+          "name": "Отчёт по нагрузке за период",
           "request": {
             "method": "GET",
             "url": {
@@ -415,24 +414,6 @@
                 { "key": "date_from", "value": "{{date_from}}" },
                 { "key": "date_to", "value": "{{date_to}}" },
                 { "key": "sort", "value": "date_desc" },
-                { "key": "page", "value": "1" },
-                { "key": "page_size", "value": "50" }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Недельная агрегация",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/workload/weekly?teacher_id={{teacher_id}}&week_from={{date_from}}&week_to={{date_to}}&page=1&page_size=50",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "schools", "{{school_id}}", "workload", "weekly"],
-              "query": [
-                { "key": "teacher_id", "value": "{{teacher_id}}" },
-                { "key": "week_from", "value": "{{date_from}}" },
-                { "key": "week_to", "value": "{{date_to}}" },
                 { "key": "page", "value": "1" },
                 { "key": "page_size", "value": "50" }
               ]
@@ -470,37 +451,13 @@
           }
         },
         {
-          "name": "Выдать согласие survey_storage",
+          "name": "Создать прохождение с ответами",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"policy_version\": \"1.0\",\n  \"purpose\": \"survey_storage\",\n  \"method\": \"web\",\n  \"proof_reference\": \"postman\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/teachers/{{teacher_id}}/survey-consents", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "teachers", "{{teacher_id}}", "survey-consents"] }
-          },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "type": "text/javascript",
-              "exec": [
-                "if (pm.response.code === 201) {",
-                "    pm.collectionVariables.set('consent_id', pm.response.json().id);",
-                "}"
-              ]
-            }
-          }]
-        },
-        {
-          "name": "Создать черновик ответа",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"survey_code\": \"{{survey_code}}\",\n  \"survey_version\": \"{{survey_version}}\",\n  \"assessment_date\": \"{{test_date}}\",\n  \"period_start\": \"{{test_date}}\",\n  \"period_end\": \"{{test_date}}\",\n  \"comment_reference_date\": \"{{test_date}}\",\n  \"source\": \"web_form\",\n  \"status\": \"draft\",\n  \"client_request_id\": \"postman-{{$guid}}\",\n  \"consent_record_id\": \"{{consent_id}}\",\n  \"answers\": {\n    \"fatigue_score\": 3,\n    \"stress_score\": 2\n  }\n}",
+              "raw": "{\n  \"survey_code\": \"{{survey_code}}\",\n  \"survey_version\": \"{{survey_version}}\",\n  \"assessment_date\": \"{{test_date}}\",\n  \"period_start\": \"{{test_date}}\",\n  \"period_end\": \"{{test_date}}\",\n  \"comment_reference_date\": \"{{test_date}}\",\n  \"source\": \"web_form\",\n  \"client_request_id\": \"postman-{{$guid}}\",\n  \"consent_given\": true,\n  \"answers\": {\n    \"fatigue_score\": 3,\n    \"stress_score\": 2,\n    \"workload_perception\": 3,\n    \"emotional_exhaustion_today\": 2,\n    \"recovery_capacity\": 4,\n    \"control_over_tasks\": 4,\n    \"main_overload_source\": \"documentation\",\n    \"today_workload_feeling\": \"Нагрузка была умеренной, к вечеру появилась усталость.\"\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses"] }
@@ -518,19 +475,17 @@
           }]
         },
         {
-          "name": "Заполнить черновик",
+          "name": "Исправить ответы черновика",
           "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "If-Match", "value": "1" }
-            ],
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"answers\": {\n    \"fatigue_score\": 3,\n    \"stress_score\": 2,\n    \"workload_perception\": 3,\n    \"emotional_exhaustion_today\": 2,\n    \"recovery_capacity\": 4,\n    \"control_over_tasks\": 4,\n    \"main_overload_source\": \"documentation\",\n    \"today_workload_feeling\": \"Нагрузка была умеренной, к вечеру появилась усталость.\"\n  }\n}",
+              "raw": "{\n  \"description\": \"Исправлена оценка усталости\",\n  \"answers\": {\n    \"fatigue_score\": 4\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}"] }
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}/corrections", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}", "corrections"] },
+            "description": "Владелец меняет ответы непринятого опроса. Обновляет updated_at, увеличивает lock_version и сохраняет предыдущие ответы в истории ревизий."
           }
         },
         {
@@ -541,10 +496,17 @@
           }
         },
         {
-          "name": "Отправить черновик",
+          "name": "Подтвердить прохождение опроса",
           "request": {
             "method": "POST",
-            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}/submit", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}", "submit"] }
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}/approve", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}", "approve"] },
+            "description": "Владелец-преподаватель меняет статус созданного черновика на approved. Маршрут не проверяет ответы или согласие."
           }
         },
         {
@@ -558,24 +520,9 @@
               "query": [
                 { "key": "teacher_id", "value": "{{teacher_id}}" },
                 { "key": "survey_code", "value": "{{survey_code}}" },
-                { "key": "status", "value": "submitted", "disabled": true },
+                { "key": "status", "value": "approved", "disabled": true },
                 { "key": "date_from", "value": "{{date_from}}" },
                 { "key": "date_to", "value": "{{date_to}}" },
-                { "key": "page", "value": "1" },
-                { "key": "page_size", "value": "50" }
-              ]
-            }
-          }
-        },
-        {
-          "name": "История опросов преподавателя",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/api/v1/schools/{{school_id}}/teachers/{{teacher_id}}/survey-history?page=1&page_size=50",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "schools", "{{school_id}}", "teachers", "{{teacher_id}}", "survey-history"],
-              "query": [
                 { "key": "page", "value": "1" },
                 { "key": "page_size", "value": "50" }
               ]
@@ -637,7 +584,29 @@
           }
         },
         {
-          "name": "Импорт шаблонов опросов — ручной выбор файла",
+          "name": "POST /surveys/templates/import — импорт шаблонов",
+          "auth": {
+            "type": "bearer",
+            "bearer": [{ "key": "token", "value": "{{admin_access_token}}", "type": "string" }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Импорт шаблонов доступен', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "if (pm.response.code === 200 && pm.request.url.query.get('dry_run') === 'true') {",
+                  "    pm.test('JSON-каталог валиден', function () {",
+                  "        pm.expect(pm.response.json().valid).to.eql(true);",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "body": {
@@ -652,32 +621,30 @@
               "path": ["api", "v1", "schools", "{{school_id}}", "surveys", "templates", "import"],
               "query": [{ "key": "dry_run", "value": "true" }]
             },
-            "description": "Выберите JSON-файл локально в Postman. dry_run=true только проверяет файл; false применяет импорт."
+            "description": "POST /api/v1/schools/{school_id}/surveys/templates/import. Только system_admin. Выберите JSON-файл локально в Postman. dry_run=true только проверяет файл; false применяет импорт."
           }
         }
       ]
     },
     {
-      "name": "08 — Отзыв данных — teacher — выполнять последним",
+      "name": "08 — Деактивация прохождения опроса — system_admin",
       "auth": {
         "type": "bearer",
-        "bearer": [{ "key": "token", "value": "{{teacher_access_token}}", "type": "string" }]
+        "bearer": [{ "key": "token", "value": "{{admin_access_token}}", "type": "string" }]
       },
       "item": [
         {
-          "name": "Отозвать ответ",
+          "name": "Деактивировать прохождение опроса",
           "request": {
             "method": "POST",
-            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}/withdraw", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}", "withdraw"] },
-            "description": "Меняет статус на withdrawn и создаёт событие аудита. После этого ответ исключается из аналитики submitted-ответов."
-          }
-        },
-        {
-          "name": "Отозвать согласие",
-          "request": {
-            "method": "POST",
-            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-consents/{{consent_id}}/withdraw", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-consents", "{{consent_id}}", "withdraw"] },
-            "description": "Создаёт событие аудита. После отзыва нельзя отправлять новые ответы с этим consent_id."
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"deactivated\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/v1/schools/{{school_id}}/survey-responses/{{survey_response_id}}/approve", "host": ["{{base_url}}"], "path": ["api", "v1", "schools", "{{school_id}}", "survey-responses", "{{survey_response_id}}", "approve"] },
+            "description": "Только system_admin меняет статус прохождения опроса на deactivated."
           }
         }
       ]

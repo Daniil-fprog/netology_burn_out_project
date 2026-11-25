@@ -163,10 +163,10 @@ ID и токены коллекция сохраняет автоматичес�
 
 Ожидается: `200`, `actual.status=completed`, `actual.total_complete=true`.
 
-### Просмотр
+### Отчёт за выбранный период
 
-- `GET .../workload/daily?date_from=...&date_to=...` — `200`, запись находится в `items`;
-- `GET .../workload/weekly?week_from=...&week_to=...` — `200`, есть `actual_hours` и `completed_days`.
+- `GET .../workload/daily?date_from=...` — `200`, отчёт за один день, запись находится в `items`;
+- `GET .../workload/daily?date_from=...&date_to=...` — `200`, отчёт за период, в `summary` есть `actual_hours`, `weekend_hours`, `observed_days` и `completed_days`.
 
 ### Ошибки
 
@@ -188,22 +188,9 @@ ID и токены коллекция сохраняет автоматичес�
 | `GET .../surveys/daily_checkin` | `200`, текущая версия опроса |
 | `GET .../surveys/daily_checkin/versions/1.0.0` | `200`, версия `1.0.0` |
 
-### Согласие
+Согласие не создаётся отдельным запросом. Чекбок `consent_given` передаётся вместе с ответом на опрос.
 
-`POST /api/v1/schools/{school_id}/teachers/{teacher_id}/survey-consents`:
-
-```json
-{
-  "policy_version": "1.0",
-  "purpose": "survey_storage",
-  "method": "web",
-  "proof_reference": "postman"
-}
-```
-
-Ожидается: `201`, получен `consent_id`.
-
-### Создание черновика
+### Создание прохождения с ответами
 
 `POST /api/v1/schools/{school_id}/survey-responses`:
 
@@ -216,43 +203,47 @@ ID и токены коллекция сохраняет автоматичес�
   "period_end": "{{test_date}}",
   "comment_reference_date": "{{test_date}}",
   "source": "web_form",
-  "status": "draft",
-  "consent_record_id": "{{consent_id}}",
+  "consent_given": true,
   "answers": {
     "fatigue_score": 3,
-    "stress_score": 2
+    "stress_score": 2,
+    "workload_perception": 3,
+    "emotional_exhaustion_today": 2,
+    "recovery_capacity": 4,
+    "control_over_tasks": 4,
+    "main_overload_source": "documentation",
+    "today_workload_feeling": "Нагрузка была умеренной, к вечеру появилась усталость."
   }
 }
 ```
 
-Ожидается: `201`, статус `draft`, получен `survey_response_id`.
+Ожидается: `201`, статус `draft`, получен `survey_response_id`, а все ответы сохранены в `answers`.
 
-### Заполнение и отправка
+### Исправление и подтверждение
 
-1. `PATCH .../survey-responses/{survey_response_id}` с заголовком `If-Match: 1` и всеми обязательными ответами — `200`, `lock_version` увеличен.
-2. `POST .../survey-responses/{survey_response_id}/submit` — `200`, статус `submitted`.
-3. `GET .../survey-responses/{survey_response_id}` — `200`, ответы доступны владельцу.
-4. `GET .../survey-responses?teacher_id=...` — `200`, ответ находится в `items`.
-5. `GET .../teachers/{teacher_id}/survey-history` — `200`, ответ находится в истории.
+1. `POST .../survey-responses/{survey_response_id}/corrections` с `description` и изменяемыми `answers` — `200`, ответы изменены, `lock_version` увеличен, `updated_at` обновлён.
+2. `POST .../survey-responses/{survey_response_id}/approve` с телом `{ "status": "approved" }` — `200`, статус `approved`.
+3. Повторное исправление после подтверждения — `409`.
+4. `GET .../survey-responses/{survey_response_id}` — `200`, ответы доступны владельцу.
+5. `GET .../survey-responses?teacher_id=...` — `200`, ответ находится в `items`.
 
 Проверки ошибок:
 
-- отправка без действующего согласия `survey_storage` — `403`;
-- отсутствие обязательного ответа — `422`;
+- создание с `consent_given=false` или без поля согласия — `422`;
+- создание без всех обязательных ответов — `422`;
 - значение шкалы меньше 1 или больше 5 — `422`;
 - неизвестный код вопроса — `422`;
 - второй активный ответ за тот же период — `409`;
-- изменение уже отправленного ответа через `PATCH` — `409`.
 
 ## 8. Аналитика и экспорт
 
-Выполняйте с JWT администратора до отзыва ответа.
+Выполняйте с JWT администратора до деактивации ответа.
 
 | Проверка | Что отправить | Что должно произойти |
 |---|---|---|
-| Охват | `GET .../survey-analytics/completion?date_from=...&date_to=...` | `200`, для преподавателя есть `completed`, `expected`, `completion_rate` |
+| Охват | `GET .../survey-analytics/completion?date_from=...&date_to=...` | `200`, для преподавателя есть `completed`, `expected`, `completion_rate`; `denominator_policy=calendar_periods_v1` означает расчёт ожидаемого числа по календарным дням, неделям и месяцам |
 | Нагрузка и самочувствие | `GET .../teachers/{teacher_id}/workload-and-wellbeing?date_from=...&date_to=...` | `200`, запись содержит `workload` и `surveys` |
-| Экспорт JSON | `GET .../surveys/exports?format=json&report=responses` | `200`, преподаватель указан как `teacher_key`, сырого ФИО нет |
+| Экспорт JSON | `GET .../surveys/exports?format=json&report=responses` | `200`, есть `consent_given` и `consented_at`, преподаватель указан как `teacher_key`, сырого ФИО нет |
 | Экспорт CSV | Изменить `format` на `csv` | `200`, скачивается CSV |
 | Экспорт XLSX | Изменить `format` на `xlsx` | `200`, скачивается XLSX |
 
@@ -267,14 +258,13 @@ ID и токены коллекция сохраняет автоматичес�
 - повреждённый JSON — `400`;
 - запрос с JWT преподавателя — `403`.
 
-## 10. Отзыв данных
+## 10. Деактивация прохождения
 
 Эти запросы выполняйте последними.
 
-1. `POST .../survey-responses/{survey_response_id}/withdraw` — `200`, статус `withdrawn`.
-2. Повторный отзыв ответа — `200`, состояние не меняется.
-3. `POST .../survey-consents/{consent_id}/withdraw` — `200`, заполнено `withdrawn_at`.
-4. Попытка отправить новый ответ с отозванным согласием — `403`.
+1. С JWT системного администратора вызовите `POST .../survey-responses/{survey_response_id}/approve` с телом `{ "status": "deactivated" }` — `200`, статус `deactivated`.
+2. Запрос деактивации с JWT преподавателя — `403`.
+3. Повторная деактивация системным администратором — `200`, состояние не меняется.
 
 ## 11. Проверка аудита
 
@@ -293,8 +283,6 @@ ORDER BY changed_at DESC;
 - `grant / user_school_access`;
 - `create / work_type` и его изменение/архивирование;
 - `create / workload_daily_logs` и `update / workload_daily_logs`;
-- `create / survey_consent`;
 - `export / surveys`;
 - `withdraw / survey_response`;
-- `withdraw / survey_consent`.
 
