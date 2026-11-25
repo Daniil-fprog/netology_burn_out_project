@@ -47,8 +47,9 @@ def get_current_user(
     db: Session = Depends(get_db),
 ):
     """
-    Проверяет JWT-токен и возвращает текущего пользователя.
-    Если токена нет или он неправильный — отдаёт 401.
+    Проверяет JWT-токен и возвращает активного пользователя.
+    Если токен неверен, пользователь не найден или деактивирован —
+    отдаёт 401.
     """
 
     credentials_exception = HTTPException(
@@ -70,7 +71,11 @@ def get_current_user(
     except (InvalidTokenError, ValueError):
         raise credentials_exception
 
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    user = (
+        db.query(UserModel)
+        .filter(UserModel.id == user_id, UserModel.is_active.is_(True))
+        .first()
+    )
 
     if user is None:
         raise credentials_exception

@@ -10,7 +10,6 @@ from app.models.organization import SchoolModel
 from app.models.role import RoleModel, UserRoleModel
 from app.models.survey import (
     SurveyAnswerModel,
-    SurveyConsentModel,
     SurveyQuestionModel,
     SurveyResponseModel,
     SurveyTemplateModel,
@@ -32,7 +31,6 @@ __all__ = [
     "ActualWorkEntryModel",
     "SurveyTemplateModel",
     "SurveyQuestionModel",
-    "SurveyConsentModel",
     "SurveyResponseModel",
     "SurveyAnswerModel",
     "AuditEventModel",

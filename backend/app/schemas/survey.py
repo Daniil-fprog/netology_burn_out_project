@@ -1,19 +1,12 @@
-"""Schemas for versioned surveys, answers, consent and NLP processing."""
+"""Schemas for versioned surveys, answers and NLP processing."""
 
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.enum import SurveyCadence, SurveyResponseStatus
 from app.schemas.common import ORMModel
-
-
-class SurveyConsentRequest(BaseModel):
-    policy_version: str = Field(min_length=1, max_length=50)
-    purpose: str = Field(pattern="^(survey_storage|research_processing|external_nlp)$")
-    method: str = Field(min_length=1, max_length=30)
-    proof_reference: str | None = None
 
 
 class SurveyResponseRequest(BaseModel):
@@ -24,19 +17,18 @@ class SurveyResponseRequest(BaseModel):
     period_end: date
     comment_reference_date: date | None = None
     source: str = Field(default="web_form", pattern="^(web_form|mobile|api|legacy_excel)$")
-    status: str = Field(default="draft", pattern="^(draft|submitted)$")
     client_request_id: str | None = None
-    consent_record_id: str | None = None
-    answers: dict[str, Any] = Field(default_factory=dict)
+    consent_given: Literal[True]
+    answers: dict[str, Any] = Field(min_length=1)
 
 
-class SurveyDraftPatch(BaseModel):
-    answers: dict[str, Any]
+class SurveyStatusUpdate(BaseModel):
+    status: Literal["approved", "deactivated"]
 
 
 class SurveyCorrectionRequest(BaseModel):
-    reason: str = Field(min_length=1, max_length=1000)
-    answers: dict[str, Any]
+    description: str = Field(min_length=1, max_length=1000)
+    answers: dict[str, Any] = Field(min_length=1)
 
 
 class SurveyQuestionDefinition(BaseModel):
@@ -85,22 +77,6 @@ class SurveyQuestionOut(ORMModel):
     created_at: datetime
 
 
-class SurveyConsentCreate(BaseModel):
-    school_id: str
-    teacher_id: str
-    policy_version: str = Field(min_length=1, max_length=50)
-    purpose: str = Field(min_length=1, max_length=40)
-    method: str = Field(min_length=1, max_length=30)
-    proof_reference: str | None = None
-
-
-class SurveyConsentOut(SurveyConsentCreate, ORMModel):
-    id: str
-    granted_at: datetime
-    withdrawn_at: datetime | None
-    created_at: datetime
-
-
 class SurveyResponseCreate(BaseModel):
     school_id: str
     teacher_id: str
@@ -110,11 +86,11 @@ class SurveyResponseCreate(BaseModel):
     period_start: date
     period_end: date
     comment_reference_date: date
-    status: SurveyResponseStatus = SurveyResponseStatus.DRAFT
+    status: Literal[SurveyResponseStatus.DRAFT] = SurveyResponseStatus.DRAFT
     source: str = Field(default="web", max_length=30)
-    consent_record_id: str | None = None
+    consent_given: Literal[True]
     client_request_id: str | None = None
-    answers: dict[str, Any] = Field(default_factory=dict)
+    answers: dict[str, Any] = Field(min_length=1)
 
     @model_validator(mode="after")
     def valid_period(self):
@@ -148,8 +124,9 @@ class SurveyResponseOut(ORMModel):
     comment_reference_date: date
     status: SurveyResponseStatus
     source: str
-    consent_record_id: str | None
-    submitted_at: datetime | None
+    consent_given: bool
+    consented_at: datetime | None
+    approved_at: datetime | None
     client_request_id: str | None
     lock_version: int
     answers: list[SurveyAnswerOut] = Field(default_factory=list)
