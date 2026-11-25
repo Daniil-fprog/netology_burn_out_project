@@ -27,6 +27,8 @@ def create_teacher(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Создаёт в школе профиль преподавателя и при необходимости связывает его с пользователем."""
+
     require_school_access(db, user.id, school_id, {"system_admin"})
 
     if (
@@ -91,6 +93,8 @@ def list_teachers(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает преподавателей доступной школы с фильтром по предмету и пагинацией."""
+
     require_school_access(db, user.id, school_id, PLAN_MANAGER_ROLES | {"teacher"})
 
     query = db.query(TeacherModel).filter_by(school_id=school_id)

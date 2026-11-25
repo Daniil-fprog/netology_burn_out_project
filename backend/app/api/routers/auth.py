@@ -16,6 +16,8 @@ def login_user(
     user_data: UserLogin,
     db: Session = Depends(get_db),
 ):
+    """Проверяет логин и пароль и возвращает Bearer JWT для последующих запросов."""
+
     user = authenticate_user_service(user_data, db)
 
     access_token = create_access_token(data={"sub": str(user.id)})

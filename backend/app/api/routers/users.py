@@ -18,6 +18,8 @@ def register_user(
     user_data: UserCreate,
     db: Session = Depends(get_db),
 ):
+    """Регистрирует новую учётную запись пользователя с уникальным логином."""
+
     return register_user_service(user_data, db)
 
 
@@ -25,6 +27,8 @@ def register_user(
 def get_me(
     current_user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает профиль активного пользователя, определённого по JWT."""
+
     return current_user
 
 
@@ -33,6 +37,8 @@ def get_users(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает системному администратору список всех пользователей."""
+
     require_roles(db, current_user.id, {RoleCode.SYSTEM_ADMIN})
     return db.query(UserModel).all()
 
@@ -43,5 +49,7 @@ def get_user_by_id(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает системному администратору пользователя с указанным ID."""
+
     require_roles(db, current_user.id, {RoleCode.SYSTEM_ADMIN})
     return db.query(UserModel).filter(UserModel.id == userId).all()

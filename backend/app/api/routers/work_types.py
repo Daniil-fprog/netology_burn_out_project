@@ -26,6 +26,8 @@ def list_work_type_directory(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Возвращает справочник видов работ, при необходимости включая архивные записи."""
+
     return list_work_types(db, include_archived=include_archived)
 
 
@@ -35,6 +37,8 @@ def create_work_type_endpoint(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Создаёт новый вид работы; операция доступна только системному администратору."""
+
     if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
@@ -48,6 +52,8 @@ def update_work_type_endpoint(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Изменяет существующий вид работы и сохраняет сведения об авторе изменения."""
+
     if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
         
@@ -60,6 +66,8 @@ def archive_work_type_endpoint(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Архивирует вид работы, запрещая его использование в новых записях нагрузки."""
+
     if user_role_codes(db, user.id).isdisjoint(WORK_TYPE_EDITOR_ROLES):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
     return archive_work_type(db, work_type_id, user.id)

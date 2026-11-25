@@ -13,7 +13,6 @@ Until the user explicitly expands the product scope, new backend development mus
 - `workload_actual_entries`
 - `survey_templates`
 - `survey_questions`
-- `survey_consents`
 - `survey_responses`
 - `survey_answers`
 - `audit_events`

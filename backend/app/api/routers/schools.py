@@ -23,6 +23,8 @@ def create_school(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
+    """Создаёт школу от имени системного администратора и записывает событие аудита."""
+
     require_roles(db, user.id, {"system_admin"})
     
     school = SchoolModel(name=data.name.strip(), external_code=data.external_code)
@@ -50,7 +52,7 @@ def list_schools(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
-    """List schools explicitly available to the current user."""
+    """Возвращает школы, назначенные пользователю; администратору доступны все школы."""
 
     query = db.query(SchoolModel)
     
@@ -75,7 +77,7 @@ def add_school_member(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user),
 ):
-    """Grant a user a role and membership in a school."""
+    """Добавляет пользователя в школу, назначает роль и фиксирует действие в аудите."""
     
     require_school_access(db, user.id, school_id, {"system_admin"})
     
