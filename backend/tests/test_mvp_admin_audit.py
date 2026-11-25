@@ -1,10 +1,13 @@
 """RBAC and audit coverage for MVP 1 administrative operations."""
 
+import pytest
+from fastapi import HTTPException
+
+from app.core.access import require_own_teacher
 from app.models import (
     AuditEventModel,
     RoleModel,
     SchoolModel,
-    SurveyConsentModel,
     TeacherModel,
     UserRoleModel,
     UserSchoolAccessModel,
@@ -126,47 +129,25 @@ def test_work_type_directory_is_readable_by_all_authenticated_users_but_editable
     assert client.post("/api/v1/work-types", headers=auth_headers, json=payload).status_code == 201
 
 
-def test_consent_withdrawal_is_audited(
-    client,
-    db_session,
-    test_user,
-    auth_headers,
-):
+def test_require_own_teacher_rejects_inactive_profile(db_session, test_user):
     assign_role(db_session, test_user.id, "teacher")
-    school = SchoolModel(name="Школа № 2")
+    school = SchoolModel(name="Школа с неактивным преподавателем")
     db_session.add(school)
     db_session.flush()
-    db_session.add(UserSchoolAccessModel(user_id=test_user.id, school_id=school.id))
-    teacher = TeacherModel(
-        school_id=school.id,
-        user_id=test_user.id,
-        external_id="teacher-self",
-        full_name=test_user.name,
-        subject="Русский язык",
+    db_session.add(
+        TeacherModel(
+            school_id=school.id,
+            user_id=test_user.id,
+            external_id="inactive-teacher",
+            full_name=test_user.name,
+            subject="Математика",
+            is_active=False,
+        )
     )
-    db_session.add(teacher)
-    db_session.flush()
-    consent = SurveyConsentModel(
-        school_id=school.id,
-        teacher_id=teacher.id,
-        purpose="survey_storage",
-        policy_version="1.0",
-        method="web",
-    )
-    db_session.add(consent)
     db_session.commit()
 
-    response = client.post(
-        f"/api/v1/schools/{school.id}/survey-consents/{consent.id}/withdraw",
-        headers=auth_headers,
-    )
+    with pytest.raises(HTTPException) as exc_info:
+        require_own_teacher(db_session, test_user.id, school.id)
 
-    assert response.status_code == 200
-    event = db_session.query(AuditEventModel).filter_by(
-        action="withdraw",
-        entity_type="survey_consent",
-        entity_id=consent.id,
-    ).one()
-    assert event.actor_id == test_user.id
-    assert event.school_id == school.id
-    assert event.purpose == "survey_storage"
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "Профиль преподавателя деактивирован"

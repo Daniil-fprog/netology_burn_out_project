@@ -14,7 +14,6 @@ from app.models.role import RoleModel, UserRoleModel
 from app.models.scope import FUTURE_TABLES, MVP_ACTIVE_TABLES
 from app.models.survey import (
     SurveyAnswerModel,
-    SurveyConsentModel,
     SurveyNLPAnalysisModel,
     SurveyQuestionModel,
     SurveyResponseModel,
@@ -39,7 +38,6 @@ from app.schemas.organization import SchoolGroupOut, SchoolGroupSchoolOut, Schoo
 from app.schemas.role import RoleOut, UserRoleOut
 from app.schemas.survey import (
     SurveyAnswerOut,
-    SurveyConsentOut,
     SurveyNLPAnalysisOut,
     SurveyQuestionOut,
     SurveyResponseOut,
@@ -71,7 +69,6 @@ SCHEMA_MODEL_PAIRS = [
     (UserRoleOut, UserRoleModel, set()),
     (SurveyTemplateOut, SurveyTemplateModel, set()),
     (SurveyQuestionOut, SurveyQuestionModel, set()),
-    (SurveyConsentOut, SurveyConsentModel, set()),
     (SurveyResponseOut, SurveyResponseModel, set()),
     (SurveyAnswerOut, SurveyAnswerModel, set()),
     (SurveyResponseRevisionOut, SurveyResponseRevisionModel, set()),

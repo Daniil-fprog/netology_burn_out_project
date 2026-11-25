@@ -4,9 +4,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app.core.security import hash_password
+from app.core.security import create_access_token, get_current_user, hash_password
 from app.db.database import get_db, Base, engine
 from app.main import app
 from app.models.user import UserModel
@@ -141,3 +142,26 @@ class TestLogin:
         response = client.post("/api/v1/users/login", json=login_data)
         
         assert response.status_code == 401
+
+
+def test_get_current_user_rejects_inactive_user(client):
+    db = TestingSessionLocal()
+    try:
+        user = UserModel(
+            name="Деактивированный пользователь",
+            login="inactive-user",
+            password_hash=hash_password("testpass123"),
+            is_active=False,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        token = create_access_token({"sub": str(user.id)})
+
+        with pytest.raises(HTTPException) as exc_info:
+            get_current_user(token=token, db=db)
+
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == "Пользователь не авторизован"
+    finally:
+        db.close()

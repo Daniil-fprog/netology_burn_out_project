@@ -10,6 +10,7 @@ from app.core.enum import DayType, RoleCode, WorkLocation, WorkUnit, WorkloadTem
 from app.core.workload_import_contract import DAY_TYPES, WORK_TYPE_CODES
 from app.db.database import Base
 from app.schemas.work_type import WorkTypeCreate
+from app.schemas.survey import SurveyResponseRequest
 from app.schemas.workload import ActualWorkEntryCreate, DailyWorkLogCreate
 
 
@@ -24,6 +25,7 @@ def test_required_domain_tables_are_registered():
     assert "role_permissions" not in Base.metadata.tables
     assert "survey_export_jobs" not in Base.metadata.tables
     assert "survey_ml_labels" not in Base.metadata.tables
+    assert "survey_consents" not in Base.metadata.tables
 
 
 def test_school_assignment_does_not_duplicate_role_or_teacher_link():
@@ -95,3 +97,15 @@ def test_daily_actual_accepts_explicit_mixed_units():
     )
     assert [entry.duration_hours for entry in log.entries] == [Decimal("6.00"), Decimal("2")]
     assert all("unit" not in entry.model_dump() for entry in log.entries)
+
+
+def test_survey_creation_requires_embedded_consent():
+    with pytest.raises(ValidationError):
+        SurveyResponseRequest(
+            survey_code="daily_checkin",
+            assessment_date=date(2026, 11, 18),
+            period_start=date(2026, 11, 18),
+            period_end=date(2026, 11, 18),
+            consent_given=False,
+            answers={"fatigue_score": 3},
+        )
