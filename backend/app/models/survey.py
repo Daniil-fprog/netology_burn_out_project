@@ -1,4 +1,4 @@
-"""Versioned wellbeing surveys, consent, revisions and NLP results."""
+"""Versioned wellbeing surveys, responses, revisions and NLP results."""
 
 from sqlalchemy import (
     Boolean,
@@ -69,34 +69,8 @@ class SurveyQuestionModel(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
-class SurveyConsentModel(Base):
-    """A teacher's revocable consent for a declared processing purpose."""
-
-    __tablename__ = "survey_consents"
-    id = Column(String(36), primary_key=True, default=new_uuid)
-    school_id = Column(
-        String(36),
-        ForeignKey("schools.id", ondelete="RESTRICT"),
-        nullable=False,
-        index=True,
-    )
-    teacher_id = Column(
-        String(36),
-        ForeignKey("teachers.id", ondelete="RESTRICT"),
-        nullable=False,
-        index=True,
-    )
-    policy_version = Column(String(50), nullable=False)
-    purpose = Column(String(40), nullable=False)
-    granted_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
-    withdrawn_at = Column(DateTime(timezone=True))
-    method = Column(String(30), nullable=False)
-    proof_reference = Column(Text)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
-
-
 class SurveyResponseModel(TimestampMixin, Base):
-    """A draft, submitted or withdrawn response for one assessment period."""
+    """A draft, approved or deactivated response for one assessment period."""
 
     __tablename__ = "survey_responses"
     __table_args__ = (
@@ -112,8 +86,8 @@ class SurveyResponseModel(TimestampMixin, Base):
             "period_start",
             "period_end",
             unique=True,
-            sqlite_where=text("status IN ('draft', 'submitted')"),
-            postgresql_where=text("status IN ('draft', 'submitted')"),
+            sqlite_where=text("status IN ('draft', 'approved')"),
+            postgresql_where=text("status IN ('draft', 'approved')"),
         ),
     )
     id = Column(String(36), primary_key=True, default=new_uuid)
@@ -141,10 +115,9 @@ class SurveyResponseModel(TimestampMixin, Base):
     comment_reference_date = Column(Date, nullable=False)
     status = Column(String(20), nullable=False)
     source = Column(String(30), nullable=False)
-    consent_record_id = Column(
-        String(36), ForeignKey("survey_consents.id", ondelete="RESTRICT")
-    )
-    submitted_at = Column(DateTime(timezone=True))
+    consent_given = Column(Boolean, nullable=False, default=False)
+    consented_at = Column(DateTime(timezone=True))
+    approved_at = Column(DateTime(timezone=True))
     client_request_id = Column(String(36))
     lock_version = Column(Integer, nullable=False, default=1)
     template = relationship("SurveyTemplateModel")
@@ -178,7 +151,7 @@ class SurveyAnswerModel(TimestampMixin, Base):
 
 
 class SurveyResponseRevisionModel(Base):
-    """An immutable snapshot retained when a submitted response changes."""
+    """An immutable snapshot retained when an approved response changes."""
 
     __tablename__ = "survey_response_revisions"
     __table_args__ = (

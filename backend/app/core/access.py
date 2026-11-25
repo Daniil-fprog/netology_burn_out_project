@@ -84,13 +84,15 @@ def find_user_teacher_in_school(db: Session, user_id: int, school_id: str) -> Te
 
 
 def require_own_teacher(db: Session, user_id: int, school_id: str) -> TeacherModel:
-    """Resolve a teacher profile for self-service operations only."""
+    """Resolve an active teacher profile for self-service operations only."""
     roles = user_role_codes(db, user_id)
     if RoleCode.TEACHER not in roles and RoleCode.SYSTEM_ADMIN not in roles:
         raise HTTPException(status_code=403, detail="Действие доступно только преподавателю")
     teacher = find_user_teacher_in_school(db, user_id, school_id)
     if teacher is None:
         raise HTTPException(status_code=403, detail="Учётная запись не связана с педагогом")
+    if not teacher.is_active:
+        raise HTTPException(status_code=403, detail="Профиль преподавателя деактивирован")
     return teacher
 
 

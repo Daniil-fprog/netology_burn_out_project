@@ -8,7 +8,7 @@ The source files contain both the first MVP domain and models reserved for later
 |---|---|
 | Identity and access | `users`, `roles`, `user_roles`, `schools`, `teachers`, `user_school_access` |
 | Actual workload | `workload_types`, `workload_daily_logs`, `workload_actual_entries` |
-| Emotional state surveys | `survey_templates`, `survey_questions`, `survey_consents`, `survey_responses`, `survey_answers` |
+| Emotional state surveys | `survey_templates`, `survey_questions`, `survey_responses`, `survey_answers` |
 | Audit | `audit_events` |
 
 ## Reserved for future expansion

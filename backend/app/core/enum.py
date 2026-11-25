@@ -67,8 +67,8 @@ class SurveyCadence(str, Enum):
 
 class SurveyResponseStatus(str, Enum):
     DRAFT = "draft"
-    SUBMITTED = "submitted"
-    WITHDRAWN = "withdrawn"
+    APPROVED = "approved"
+    DEACTIVATED = "deactivated"
 
 
 class ExportFormat(str, Enum):
